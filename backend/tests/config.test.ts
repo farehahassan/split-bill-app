@@ -11,6 +11,7 @@ describe("Configuration", () => {
 
     expect(env.NODE_ENV).toBe("test");
     expect(env.DATABASE_URL).toBe("postgresql://test:test@localhost:5432/test_db");
+    expect(env.JWT_SECRET).toBe("test-secret-that-is-long-enough-for-tests");
   });
 
   it("should use defaults for optional fields", () => {

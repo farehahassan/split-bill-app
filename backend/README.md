@@ -24,27 +24,40 @@ backend/
 │   ├── config/
 │   │   └── env.ts                # Zod-validated environment config
 │   ├── constants/
+│   │   ├── app-errors.ts         # Application error code names
 │   │   └── http-statuses.ts      # HTTP status code enum (meaningful names)
 │   ├── db/
 │   │   └── prisma.ts             # Centralized Prisma client & DB utilities
 │   ├── middleware/
+│   │   ├── authenticate.ts       # JWT bearer-token auth for protected routes
 │   │   ├── errorHandler.ts       # Centralized error handling + 404
 │   │   └── validate.ts           # Zod validation middleware
+│   ├── modules/
+│   │   └── auth/                 # Authentication feature module
+│   │       ├── auth.controller.ts
+│   │       ├── auth.repository.ts
+│   │       ├── auth.routes.ts
+│   │       ├── auth.service.ts
+│   │       └── validators.ts
 │   ├── routes/
 │   │   ├── health.ts             # GET /health, GET /health/ready
-│   │   └── index.ts              # /api/v1 router foundation
+│   │   ├── index.ts              # /api/v1 router
+│   │   └── v1/index.ts           # Mounts feature modules (auth, etc.)
 │   ├── types/
 │   │   └── index.ts              # Shared TypeScript types
 │   ├── utils/
+│   │   ├── asyncHandler.ts       # Wraps async controllers to forward errors
 │   │   └── logger.ts             # Lightweight structured JSON logger
 │   ├── app.ts                    # Express application (testable standalone)
 │   └── server.ts                 # Server startup
 ├── tests/
 │   ├── setup.ts                  # Test setup (env config, silent logger)
 │   ├── app.test.ts               # Application + health + 404 tests
+│   ├── auth.api.test.ts          # Auth endpoint integration tests (mocked DB)
+│   ├── auth.service.test.ts      # Auth service unit tests (mocked repository)
 │   ├── config.test.ts            # Configuration validation tests
 │   ├── health.test.ts            # Readiness endpoint tests (mocked DB)
-│   └── middleware.test.ts         # Validation middleware tests
+│   └── middleware.test.ts        # Validation middleware tests
 ├── .env.example
 ├── .gitignore
 ├── eslint.config.js
@@ -78,6 +91,8 @@ Copy `.env.example` to `.env` and configure. **Never commit your `.env` file or 
 | `PORT` | No | `3000` | HTTP server port |
 | `DATABASE_URL` | Yes | — | PostgreSQL connection string (format: `postgresql://user:password@host:port/dbname`) |
 | `CORS_ORIGIN` | No | `http://localhost:3000` | Allowed CORS origin |
+| `JWT_SECRET` | Yes | — | Secret used to sign JSON Web Tokens. Generate a strong random value and never commit it. |
+| `JWT_EXPIRES_IN` | No | `7d` | Access token lifetime (e.g. `7d`, `1h`) |
 
 ### Setting Up Your Local Database
 
@@ -172,13 +187,95 @@ HTTP status codes use the `HTTP_STATUSES` enum (`src/constants/http-statuses.ts`
 
 All feature endpoints are mounted under `/api/v1`:
 
-- `/api/v1/auth` — Authentication (not yet implemented)
+- `/api/v1/auth` — Authentication (register, login, current user)
 - `/api/v1/users` — User management (not yet implemented)
 - `/api/v1/groups` — Group management (not yet implemented)
 - `/api/v1/expenses` — Expense tracking (not yet implemented)
 - `/api/v1/balances` — Balance calculations (not yet implemented)
 - `/api/v1/settlements` — Settlement recording (not yet implemented)
 - `/api/v1/activity` — Activity feed (not yet implemented)
+
+## Authentication API
+
+Authentication endpoints live under `/api/v1/auth`.
+
+### POST /api/v1/auth/register
+
+Registers a new user and returns an access token.
+
+Request body:
+
+```json
+{
+  "name": "Ahmed Raza",
+  "email": "ahmed@example.com",
+  "password": "password123"
+}
+```
+
+- `name` — required, non-empty string
+- `email` — required, valid email
+- `password` — required, at least 8 characters
+
+- `201` — user created; returns `{ success, data: { user, token } }`
+- `409` — an account with this email already exists
+- `400` — validation failed
+
+Response (201):
+
+```json
+{
+  "success": true,
+  "data": {
+    "user": { "id": "<uuid>", "name": "Ahmed Raza", "email": "ahmed@example.com" },
+    "token": "<jwt>"
+  }
+}
+```
+
+> The user object never includes `passwordHash` or `password`. Passwords are
+> hashed with **bcrypt** (12 rounds) before storage.
+
+### POST /api/v1/auth/login
+
+Signs in an existing user and returns an access token.
+
+Request body:
+
+```json
+{
+  "email": "ahmed@example.com",
+  "password": "password123"
+}
+```
+
+- `200` — success; returns `{ success, data: { user, token } }`
+- `401` — invalid email or password
+- `400` — validation failed
+
+### GET /api/v1/auth/me
+
+Returns the currently authenticated user. Requires a `Bearer` token.
+
+Request header:
+
+```
+Authorization: Bearer <jwt>
+```
+
+- `200` — success; returns `{ success, data: { user } }`
+- `401` — missing, malformed, invalid, or expired token
+- `404` — the authenticated user no longer exists
+
+### Authentication Internals
+
+- Tokens are **JWT** signed with the configured `JWT_SECRET` and expire after
+  `JWT_EXPIRES_IN`.
+- The `authenticate` middleware (`src/middleware/authenticate.ts`) validates the
+  `Authorization: Bearer` header on protected routes and attaches `req.userId`.
+- Passwords are never stored in plaintext and never returned to clients.
+- Application error codes live in `src/constants/app-errors.ts` and are used
+  with the centralized error handler for consistent, machine-readable responses.
 
 ## Database Schema
 
@@ -253,9 +350,28 @@ The `PrismaClient` instance is cached on `globalThis` during development to prev
 
 In production, a single client instance is reused across all HTTP requests.
 
+## Architecture
+
+Feature modules follow a strict layered dependency flow, keeping HTTP concerns,
+business logic, and data access separate:
+
+```
+Routes
+  → Controller   (handle HTTP req/res, call service)
+  → Service      (business logic, auth, hashing, tokens)
+  → Repository   (Prisma data access)
+  → Prisma       (database)
+```
+
+Each feature lives under `src/modules/<feature>/`. The `auth` module is the
+first example. Controllers parse the validated request and delegate to the
+service; the service owns rules (e.g. duplicate-email detection, password
+verification, token signing) and throws application errors that the centralized
+error handler converts to the standard error response.
+
 ## Current Implementation Status
 
-This is the database foundation (Chunks 1–2). The following are implemented:
+Implemented so far (Chunks 1–3):
 
 - TypeScript project configuration (strict mode)
 - Express application with middleware (CORS, Helmet, rate limiting, JSON parsing)
@@ -272,21 +388,27 @@ This is the database foundation (Chunks 1–2). The following are implemented:
 - Centralized Prisma client module with lifecycle utilities
 - Readiness endpoint (`/health/ready`) with mocked DB check in tests
 - Database scripts (`db:generate`, `db:migrate`, `db:migrate:dev`, `db:studio`, `db:validate`)
-- Test suite (Vitest + Supertest, 17 tests, all passing without live DB)
+- **Authentication API** (`/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/me`)
+- JWT token signing/verification with configurable secret and lifetime
+- bcrypt password hashing (never stored or returned in plaintext)
+- `authenticate` middleware for protecting routes
+- Module-based architecture (`src/modules/auth/`): routes → controller → service → repository → Prisma
+- Test suite (Vitest + Supertest, 32 tests, all passing without a live DB)
 
 ## Not Yet Implemented
 
 The following features are **NOT implemented** in this chunk:
 
-- Authentication (register, login, JWT, refresh tokens)
-- User management / profile updates
+- Refresh-token rotation & token revocation (RefreshToken model is reserved for a future chunk)
+- Email verification / password reset
+- User management / profile update endpoints
 - Group API endpoints (create, list, add members, delete)
 - Expense API endpoints (create, list, split, delete)
 - Balance calculation logic
 - Settlement API endpoints (record payments)
 - Activity feed generation logic
 
-These will be built on top of this database foundation in subsequent chunks.
+These will be built on top of this foundation in subsequent chunks.
 
 ## Frontend Compatibility
 

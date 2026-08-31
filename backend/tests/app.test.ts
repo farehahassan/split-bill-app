@@ -32,15 +32,15 @@ describe("Application", () => {
     });
   });
 
-  it("GET /api/v1 returns 404 when no feature module is mounted yet", async () => {
+  it("GET /api/v1 returns 404 when no feature module is mounted at root", async () => {
     const res = await request(app).get("/api/v1");
 
     expect(res.status).toBe(HTTP_STATUSES.NOT_FOUND);
     expect(res.body.success).toBe(false);
   });
 
-  it("GET /api/v1/auth/register should return 404 (not implemented yet)", async () => {
-    const res = await request(app).get("/api/v1/auth/register");
+  it("GET /api/v1/users should return 404 (not implemented yet)", async () => {
+    const res = await request(app).get("/api/v1/users");
 
     expect(res.status).toBe(HTTP_STATUSES.NOT_FOUND);
     expect(res.body.success).toBe(false);
