@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import type { AppError, ErrorResponse } from "../types/index.js";
 import { ZodError } from "zod";
 import { logger } from "../utils/logger.js";
+import { HTTP_STATUSES } from "../constants/http-statuses.js";
 
 export function createAppError(statusCode: number, code: string, message: string): AppError {
   const error = new Error(message) as AppError;
@@ -10,7 +11,6 @@ export function createAppError(statusCode: number, code: string, message: string
   error.isOperational = true;
   return error;
 }
-
 function formatZodError(error: ZodError): ErrorResponse {
   const errors = error.issues.map((issue) => ({
     field: issue.path.join("."),
@@ -25,13 +25,16 @@ function formatZodError(error: ZodError): ErrorResponse {
 
 export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction): void {
   if (err instanceof ZodError) {
-    res.status(400).json(formatZodError(err));
+    res.status(HTTP_STATUSES.BAD_REQUEST).json(formatZodError(err));
     return;
   }
 
   const bodyParserError = err as { type?: string; status?: number };
-  if (bodyParserError.type === "entity.parse.failed" || bodyParserError.status === 400) {
-    res.status(400).json({
+  if (
+    bodyParserError.type === "entity.parse.failed" ||
+    bodyParserError.status === HTTP_STATUSES.BAD_REQUEST
+  ) {
+    res.status(HTTP_STATUSES.BAD_REQUEST).json({
       success: false,
       message: "Invalid JSON request body.",
     } satisfies ErrorResponse);
@@ -50,14 +53,14 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
 
   logger.error("Unhandled error", { error: err.message, stack: err.stack });
 
-  res.status(500).json({
+  res.status(HTTP_STATUSES.INTERNAL_SERVER_ERROR).json({
     success: false,
     message: "Something went wrong on our side. Please try again later.",
   } satisfies ErrorResponse);
 }
 
 export function notFoundHandler(_req: Request, res: Response): void {
-  res.status(404).json({
+  res.status(HTTP_STATUSES.NOT_FOUND).json({
     success: false,
     message: "Endpoint not found.",
   } satisfies ErrorResponse);
