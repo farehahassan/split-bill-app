@@ -3,8 +3,7 @@ import jwt from "jsonwebtoken";
 
 import { getEnv } from "../../config/env.js";
 import { APP_ERRORS } from "../../constants/app-errors.js";
-import { createAppError } from "../../middleware/errorHandler.js";
-import { HTTP_STATUSES } from "../../constants/http-statuses.js";
+import { ConflictError, NotFoundError, UnauthorizedError } from "../../errors/app.error.js";
 import { AuthRepository, type AuthUser } from "./auth.repository.js";
 
 const BCRYPT_ROUNDS = 12;
@@ -25,8 +24,7 @@ export class AuthService {
   async register(data: { name: string; email: string; password: string }): Promise<AuthResult> {
     const existing = await this.repository.findByEmail(data.email);
     if (existing) {
-      throw createAppError(
-        HTTP_STATUSES.CONFLICT,
+      throw new ConflictError(
         APP_ERRORS.EMAIL_IN_USE,
         "An account with this email already exists.",
       );
@@ -45,20 +43,12 @@ export class AuthService {
   async login(data: { email: string; password: string }): Promise<AuthResult> {
     const user = await this.repository.findByEmail(data.email);
     if (!user || !user.passwordHash) {
-      throw createAppError(
-        HTTP_STATUSES.UNAUTHORIZED,
-        APP_ERRORS.INVALID_CREDENTIALS,
-        "Invalid email or password.",
-      );
+      throw new UnauthorizedError(APP_ERRORS.INVALID_CREDENTIALS, "Invalid email or password.");
     }
 
     const valid = await bcrypt.compare(data.password, user.passwordHash);
     if (!valid) {
-      throw createAppError(
-        HTTP_STATUSES.UNAUTHORIZED,
-        APP_ERRORS.INVALID_CREDENTIALS,
-        "Invalid email or password.",
-      );
+      throw new UnauthorizedError(APP_ERRORS.INVALID_CREDENTIALS, "Invalid email or password.");
     }
 
     return {
@@ -70,7 +60,7 @@ export class AuthService {
   async getMe(userId: string): Promise<AuthUser> {
     const user = await this.repository.findById(userId);
     if (!user) {
-      throw createAppError(HTTP_STATUSES.NOT_FOUND, APP_ERRORS.USER_NOT_FOUND, "User not found.");
+      throw new NotFoundError(APP_ERRORS.USER_NOT_FOUND, "User not found.");
     }
     return { id: user.id, name: user.name, email: user.email };
   }
@@ -83,17 +73,12 @@ export class AuthService {
     } catch (error) {
       const err = error as jwt.JsonWebTokenError;
       if (err.name === "TokenExpiredError") {
-        throw createAppError(
-          HTTP_STATUSES.UNAUTHORIZED,
+        throw new UnauthorizedError(
           APP_ERRORS.TOKEN_EXPIRED,
           "Your session has expired. Please sign in again.",
         );
       }
-      throw createAppError(
-        HTTP_STATUSES.UNAUTHORIZED,
-        APP_ERRORS.TOKEN_INVALID,
-        "Invalid or malformed token.",
-      );
+      throw new UnauthorizedError(APP_ERRORS.TOKEN_INVALID, "Invalid or malformed token.");
     }
   }
 

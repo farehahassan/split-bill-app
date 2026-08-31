@@ -1,8 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 
 import { APP_ERRORS } from "../constants/app-errors.js";
-import { HTTP_STATUSES } from "../constants/http-statuses.js";
-import { createAppError } from "./errorHandler.js";
+import { UnauthorizedError } from "../errors/app.error.js";
 import { AuthService } from "../modules/auth/auth.service.js";
 import { AuthRepository } from "../modules/auth/auth.repository.js";
 
@@ -20,25 +19,13 @@ const authService = new AuthService(new AuthRepository());
 export function authenticate(req: Request, _res: Response, next: NextFunction): void {
   const header = req.headers.authorization;
   if (!header) {
-    next(
-      createAppError(
-        HTTP_STATUSES.UNAUTHORIZED,
-        APP_ERRORS.TOKEN_MISSING,
-        "Authentication token is required.",
-      ),
-    );
+    next(new UnauthorizedError(APP_ERRORS.TOKEN_MISSING, "Authentication token is required."));
     return;
   }
 
   const [scheme, token] = header.split(" ");
   if (scheme !== "Bearer" || !token) {
-    next(
-      createAppError(
-        HTTP_STATUSES.UNAUTHORIZED,
-        APP_ERRORS.TOKEN_MISSING,
-        "Bearer token is required.",
-      ),
-    );
+    next(new UnauthorizedError(APP_ERRORS.TOKEN_MISSING, "Bearer token is required."));
     return;
   }
 

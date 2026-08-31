@@ -28,6 +28,8 @@ backend/
 │   │   └── http-statuses.ts      # HTTP status code enum (meaningful names)
 │   ├── db/
 │   │   └── prisma.ts             # Centralized Prisma client & DB utilities
+│   ├── errors/
+│   │   └── app.error.ts          # Base AppError + specialized error classes
 │   ├── middleware/
 │   │   ├── authenticate.ts       # JWT bearer-token auth for protected routes
 │   │   ├── errorHandler.ts       # Centralized error handling + 404
@@ -49,13 +51,15 @@ backend/
 │   │   ├── asyncHandler.ts       # Wraps async controllers to forward errors
 │   │   └── logger.ts             # Lightweight structured JSON logger
 │   ├── app.ts                    # Express application (testable standalone)
-│   └── server.ts                 # Server startup
+│   └── server.ts                 # Server startup: DB connect + graceful shutdown
 ├── tests/
 │   ├── setup.ts                  # Test setup (env config, silent logger)
 │   ├── app.test.ts               # Application + health + 404 tests
 │   ├── auth.api.test.ts          # Auth endpoint integration tests (mocked DB)
 │   ├── auth.service.test.ts      # Auth service unit tests (mocked repository)
 │   ├── config.test.ts            # Configuration validation tests
+│   ├── errors.test.ts            # Error class unit tests
+│   ├── asyncHandler.test.ts      # Async handler middleware tests
 │   ├── health.test.ts            # Readiness endpoint tests (mocked DB)
 │   └── middleware.test.ts        # Validation middleware tests
 ├── .env.example
@@ -274,8 +278,10 @@ Authorization: Bearer <jwt>
 - The `authenticate` middleware (`src/middleware/authenticate.ts`) validates the
   `Authorization: Bearer` header on protected routes and attaches `req.userId`.
 - Passwords are never stored in plaintext and never returned to clients.
-- Application error codes live in `src/constants/app-errors.ts` and are used
-  with the centralized error handler for consistent, machine-readable responses.
+- Application error codes live in `src/constants/app-errors.ts`, and domain
+  errors are thrown as `AppError` subclasses (`src/errors/app.error.ts`) carrying
+  an HTTP status and machine-readable code. The centralized error handler
+  serializes them into consistent responses without leaking internals.
 
 ## Database Schema
 

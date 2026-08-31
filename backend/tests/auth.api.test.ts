@@ -83,6 +83,16 @@ describe("Authentication API", () => {
       expect(res.body.success).toBe(false);
       expect(res.body.errors).toBeDefined();
     });
+
+    it("should reject validation failures in middleware before reaching the service", async () => {
+      const res = await request(app)
+        .post("/api/v1/auth/register")
+        .send({ name: "", email: "not-an-email", password: "short" });
+
+      expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
+      expect(mockFindUnique).not.toHaveBeenCalled();
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
   });
 
   describe("POST /api/v1/auth/login", () => {
