@@ -1,16 +1,10 @@
 import type { Request, Response, NextFunction } from "express";
-import type { AppError, ErrorResponse } from "../types/index.js";
+import type { ErrorResponse } from "../types/index.js";
 import { ZodError } from "zod";
 import { logger } from "../utils/logger.js";
 import { HTTP_STATUSES } from "../constants/http-statuses.js";
+import { AppError } from "../errors/app.error.js";
 
-export function createAppError(statusCode: number, code: string, message: string): AppError {
-  const error = new Error(message) as AppError;
-  error.statusCode = statusCode;
-  error.code = code;
-  error.isOperational = true;
-  return error;
-}
 function formatZodError(error: ZodError): ErrorResponse {
   const errors = error.issues.map((issue) => ({
     field: issue.path.join("."),
@@ -41,13 +35,12 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     return;
   }
 
-  const appError = err as AppError;
-  if (appError.isOperational && appError.statusCode) {
+  if (err instanceof AppError) {
     const body: ErrorResponse = {
       success: false,
-      message: appError.message,
+      message: err.message,
     };
-    res.status(appError.statusCode).json(body);
+    res.status(err.statusCode).json(body);
     return;
   }
 
