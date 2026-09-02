@@ -3,7 +3,9 @@ import { HTTP_STATUSES } from "../src/constants/http-statuses.js";
 import { APP_ERRORS } from "../src/constants/app-errors.js";
 import {
   AppError,
+  BadRequestError,
   ConflictError,
+  ForbiddenError,
   NotFoundError,
   UnauthorizedError,
 } from "../src/errors/app.error.js";
@@ -34,11 +36,27 @@ describe("AppError class hierarchy", () => {
     expect(error.code).toBe(APP_ERRORS.EMAIL_IN_USE);
   });
 
+  it("BadRequestError should map to 400 Bad Request with the given code", () => {
+    const error = new BadRequestError(APP_ERRORS.SPLIT_TOTAL_MISMATCH, "Splits must sum to total.");
+    expect(error).toBeInstanceOf(AppError);
+    expect(error.name).toBe("BadRequestError");
+    expect(error.statusCode).toBe(HTTP_STATUSES.BAD_REQUEST);
+    expect(error.code).toBe(APP_ERRORS.SPLIT_TOTAL_MISMATCH);
+  });
+
   it("UnauthorizedError should map to 401 Unauthorized with the given code", () => {
     const error = new UnauthorizedError(APP_ERRORS.INVALID_CREDENTIALS, "Invalid credentials.");
     expect(error).toBeInstanceOf(AppError);
     expect(error.statusCode).toBe(HTTP_STATUSES.UNAUTHORIZED);
     expect(error.code).toBe(APP_ERRORS.INVALID_CREDENTIALS);
+  });
+
+  it("ForbiddenError should map to 403 Forbidden with the given code", () => {
+    const error = new ForbiddenError(APP_ERRORS.NOT_GROUP_OWNER, "Not allowed.");
+    expect(error).toBeInstanceOf(AppError);
+    expect(error.name).toBe("ForbiddenError");
+    expect(error.statusCode).toBe(HTTP_STATUSES.FORBIDDEN);
+    expect(error.code).toBe(APP_ERRORS.NOT_GROUP_OWNER);
   });
 
   it("NotFoundError should map to 404 Not Found with the given code", () => {
