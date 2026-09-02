@@ -42,6 +42,15 @@ export class UnauthorizedError extends AppError {
 }
 
 /**
+ * The request is missing sufficient authorization (HTTP 403).
+ */
+export class ForbiddenError extends AppError {
+  constructor(code: string, message: string) {
+    super(HTTP_STATUSES.FORBIDDEN, code, message);
+  }
+}
+
+/**
  * The requested resource does not exist (HTTP 404).
  */
 export class NotFoundError extends AppError {
