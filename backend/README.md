@@ -35,16 +35,36 @@ backend/
 │   │   ├── errorHandler.ts       # Centralized error handling + 404
 │   │   └── validate.ts           # Zod validation middleware
 │   ├── modules/
-│   │   └── auth/                 # Authentication feature module
-│   │       ├── auth.controller.ts
-│   │       ├── auth.repository.ts
-│   │       ├── auth.routes.ts
-│   │       ├── auth.service.ts
+│   │   ├── auth/                 # Authentication feature module
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── auth.repository.ts
+│   │   │   ├── auth.routes.ts
+│   │   │   ├── auth.service.ts
+│   │   │   └── validators.ts
+│   │   └── groups/               # Groups & membership feature module
+│   │       ├── group.controller.ts
+│   │       ├── group.repository.ts
+│   │       ├── group.routes.ts
+│   │       ├── group.service.ts
+│   │       └── validators.ts
+│   │   └── expenses/              # Expenses & split calculation feature module
+│   │       ├── expense.controller.ts
+│   │       ├── expense.repository.ts
+│   │       ├── expense.routes.ts
+│   │       ├── expense.service.ts
+│   │       ├── split.util.ts      # Pure EQUAL/EXACT split calculation helpers
+│   │       └── validators.ts
+│   │   └── settlements/           # Balance calculation & settlement feature module
+│   │       ├── balance.util.ts    # Pure BIGINT balance calculation helpers
+│   │       ├── settlement.controller.ts
+│   │       ├── settlement.repository.ts
+│   │       ├── settlement.routes.ts
+│   │       ├── settlement.service.ts
 │   │       └── validators.ts
 │   ├── routes/
 │   │   ├── health.ts             # GET /health, GET /health/ready
 │   │   ├── index.ts              # /api/v1 router
-│   │   └── v1/index.ts           # Mounts feature modules (auth, etc.)
+│   │   └── v1/index.ts           # Mounts feature modules (auth, groups, expenses, settlements, ...)
 │   ├── types/
 │   │   └── index.ts              # Shared TypeScript types
 │   ├── utils/
@@ -57,6 +77,14 @@ backend/
 │   ├── app.test.ts               # Application + health + 404 tests
 │   ├── auth.api.test.ts          # Auth endpoint integration tests (mocked DB)
 │   ├── auth.service.test.ts      # Auth service unit tests (mocked repository)
+│   ├── groups.api.test.ts        # Group endpoint integration tests (mocked DB)
+│   ├── groups.service.test.ts    # Group service unit tests (mocked repository)
+│   ├── expenses.api.test.ts      # Expense endpoint integration tests (mocked DB)
+│   ├── expenses.service.test.ts  # Expense service unit tests (mocked repository)
+│   ├── split.util.test.ts        # Split calculation unit tests
+│   ├── settlement.api.test.ts    # Balance & settlement endpoint integration tests (mocked DB)
+│   ├── settlement.service.test.ts# Balance & settlement service unit tests (mocked repository)
+│   ├── balance.util.test.ts      # Balance calculation unit tests
 │   ├── config.test.ts            # Configuration validation tests
 │   ├── errors.test.ts            # Error class unit tests
 │   ├── asyncHandler.test.ts      # Async handler middleware tests
@@ -193,10 +221,9 @@ All feature endpoints are mounted under `/api/v1`:
 
 - `/api/v1/auth` — Authentication (register, login, current user)
 - `/api/v1/users` — User management (not yet implemented)
-- `/api/v1/groups` — Group management (not yet implemented)
-- `/api/v1/expenses` — Expense tracking (not yet implemented)
-- `/api/v1/balances` — Balance calculations (not yet implemented)
-- `/api/v1/settlements` — Settlement recording (not yet implemented)
+- `/api/v1/groups` — Group management & membership
+- `/api/v1/expenses` — Expense tracking & split calculation
+- `/api/v1/settlements` — Settlement recording & balance calculation
 - `/api/v1/activity` — Activity feed (not yet implemented)
 
 ## Authentication API
@@ -282,6 +309,386 @@ Authorization: Bearer <jwt>
   errors are thrown as `AppError` subclasses (`src/errors/app.error.ts`) carrying
   an HTTP status and machine-readable code. The centralized error handler
   serializes them into consistent responses without leaking internals.
+
+## Groups API
+
+Group and membership endpoints live under `/api/v1/groups`. Every group endpoint
+requires authentication via the `Authorization: Bearer <jwt>` header.
+
+### Authorization Model
+
+- **Owner** (the user who created the group, `group.createdById`) may update the
+  group name, delete the group, and add/remove members.
+- **Members** (users with a `GroupMember` record) may view the group detail and
+  member list, and list the group in their own group list.
+- **Non-members** may not view group details; they receive HTTP 403.
+- The group owner is automatically the first member and cannot be removed.
+
+### POST /api/v1/groups
+
+Creates a new group. The authenticated user becomes the owner and is
+automatically added as the first member in a single database transaction.
+
+Request body:
+
+```json
+{
+  "name": "Trip to Naran"
+}
+```
+
+- `name` — required, non-empty string (trimmed)
+
+- `201` — group created; returns `{ success, data: { group } }`
+- `400` — validation failed
+- `401` — missing/invalid token
+
+Response (201):
+
+```json
+{
+  "success": true,
+  "data": {
+    "group": {
+      "id": "<uuid>",
+      "name": "Trip to Naran",
+      "createdById": "<owner-uuid>",
+      "createdAt": "...",
+      "updatedAt": "..."
+    }
+  }
+}
+```
+
+### GET /api/v1/groups
+
+Lists all groups the authenticated user is a member of, including the member count.
+
+- `200` — returns `{ success, data: { groups } }`; an empty array when the user has no groups
+- `401` — missing/invalid token
+
+Response (200):
+
+```json
+{
+  "success": true,
+  "data": {
+    "groups": [
+      {
+        "id": "<uuid>",
+        "name": "Trip to Naran",
+        "createdById": "<owner-uuid>",
+        "memberCount": 5,
+        "createdAt": "...",
+        "updatedAt": "..."
+      }
+    ]
+  }
+}
+```
+
+### GET /api/v1/groups/:id
+
+Returns group details and the full member list. The authenticated user must be a member.
+
+- `200` — returns `{ success, data: { group } }`
+- `401` — missing/invalid token
+- `403` — authenticated user is not a member
+- `404` — group does not exist
+
+Response (200):
+
+```json
+{
+  "success": true,
+  "data": {
+    "group": {
+      "id": "<uuid>",
+      "name": "Trip to Naran",
+      "createdById": "<owner-uuid>",
+      "createdAt": "...",
+      "updatedAt": "...",
+      "members": [
+        { "id": "<uuid>", "name": "Ahmed Raza", "email": "ahmed@example.com" }
+      ]
+    }
+  }
+}
+```
+
+> Only the member's `id`, `name`, and `email` are returned — never a password hash
+> or other sensitive authentication data.
+
+### PUT /api/v1/groups/:id
+
+Updates the group name. The authenticated user must be the owner.
+
+Request body:
+
+```json
+{
+  "name": "Updated Name"
+}
+```
+
+- `200` — group updated; returns `{ success, data: { group } }`
+- `400` — validation failed
+- `401` — missing/invalid token
+- `403` — authenticated user is not the owner
+- `404` — group does not exist
+
+### DELETE /api/v1/groups/:id
+
+Deletes the group. The authenticated user must be the owner. Related records
+(memberships, expenses, settlements, activities) are removed by the existing
+Prisma cascade relationships.
+
+- `204` — group deleted (no response body)
+- `401` — missing/invalid token
+- `403` — authenticated user is not the owner
+- `404` — group does not exist
+
+### POST /api/v1/groups/:id/members
+
+Adds a member to the group. The authenticated user must be the owner.
+
+Request body:
+
+```json
+{
+  "userId": "<target-user-uuid>"
+}
+```
+
+- `201` — member added; returns `{ success, data: { member } }`
+- `400` — validation failed
+- `401` — missing/invalid token
+- `403` — authenticated user is not the owner
+- `404` — group or target user does not exist
+- `409` — target user is already a member
+
+### DELETE /api/v1/groups/:id/members/:memberId
+
+Removes a member from the group. The authenticated user must be the owner. The
+owner cannot be removed.
+
+- `204` — member removed (no response body)
+- `401` — missing/invalid token
+- `403` — authenticated user is not the owner
+- `404` — group or member does not exist
+- `409` — attempting to remove the group owner
+
+### Groups Internals
+
+The groups module lives under `src/modules/groups/` and follows the same layered
+architecture as `auth`: routes → controller → service → repository → Prisma. The
+service owns authorization (ownership and membership checks) and throws grouped
+`AppError` subclasses (`ForbiddenError`, `NotFoundError`, `ConflictError`) that
+the centralized error handler serializes.
+
+## Expenses API
+
+Expense endpoints live under `/api/v1/groups/:groupId/expenses` and
+`/api/v1/expenses`. Every expense endpoint requires authentication via the
+`Authorization: Bearer <jwt>` header.
+
+### Authorization Model
+
+- Any **group member** may create an expense in the group, list the group's
+  expenses, and view an individual expense.
+- The **payer** (who paid for the expense) must be a member of the same group.
+- Every **split participant** must be a member of the same group — arbitrary
+  users outside the group cannot appear in a split.
+- **Non-members** (or members of another group) cannot create, list, or view the
+  group's expenses; they receive HTTP 403.
+
+### Money Representation
+
+All amounts are expressed as **integer minor units** (e.g. paisa for PKR), stored
+as `BigInt` in the database — see [Money Representation](#money-representation).
+The API accepts and returns whole-number minor units and never uses
+floating-point arithmetic for split calculations.
+
+### POST /api/v1/groups/:groupId/expenses
+
+Creates an expense and its `ExpenseSplit` records inside a single database
+transaction. The authenticated requester must be a member of the group.
+
+Request body:
+
+```json
+{
+  "description": "Dinner",
+  "amountMinorUnits": 1000,
+  "payerId": "<member-uuid>",
+  "splitType": "EQUAL",
+  "participants": [
+    { "userId": "<member-uuid>" },
+    { "userId": "<member-uuid>" },
+    { "userId": "<member-uuid>" }
+  ],
+  "expenseDate": "2026-01-01T00:00:00.000Z"
+}
+```
+
+Fields:
+- `description` — required, non-empty string (trimmed)
+- `amountMinorUnits` — required, positive integer minor units
+- `payerId` — required, must be a member of the group
+- `splitType` — required, `EQUAL` or `EXACT`
+- `participants` — required, non-empty array of member user IDs; each user must
+  be a group member and appear at most once
+- `expenseDate` — optional RFC-3339 date, defaults to the server time
+
+**EQUAL:** the total is divided into equal shares; any smallest-unit remainder is
+assigned one extra minor unit to the first participants, so the shares always sum
+to the total exactly (e.g. `1000` across 3 → `334`, `333`, `333`).
+
+**EXACT:** each participant must provide an `amountMinorUnits`; the provided
+amounts must sum to the expense total exactly.
+
+- `201` — expense created; returns `{ success, data: { expense } }` with splits
+- `400` — validation failed, duplicate participant, or EXACT split total mismatch
+- `401` — missing/invalid token
+- `403` — requester, payer, or a split participant is not a group member
+- `404` — group does not exist
+
+### GET /api/v1/groups/:groupId/expenses
+
+Lists the expenses belonging to a group, newest first, including the payer and a
+split count. The authenticated requester must be a member of the group.
+
+- `200` — returns `{ success, data: { expenses } }`; empty array when the group has none
+- `401` — missing/invalid token
+- `403` — authenticated user is not a member
+- `404` — group does not exist
+
+### GET /api/v1/expenses/:id
+
+Returns a single expense with its full split details (including each
+participant's `id`, `name`, and `email`). The authenticated requester must be a
+member of the group the expense belongs to.
+
+- `200` — returns `{ success, data: { expense } }`
+- `401` — missing/invalid token
+- `403` — authenticated user is not a member of the expense's group
+- `404` — expense does not exist
+
+### Expenses Internals
+
+The expenses module lives under `src/modules/expenses/` and follows the same
+layered architecture as `auth` and `groups`. The split math is factored into a
+pure, deterministic module (`split.util.ts`) that is unit-tested directly. The
+service owns validation of group/payer/participant membership and split
+reconciliation, and throws grouped `AppError` subclasses (`BadRequestError`,
+`ForbiddenError`, `NotFoundError`) that the centralized error handler serializes.
+
+## Balances & Settlements API
+
+Balance and settlement endpoints live under `/api/v1/groups/:groupId/balances`,
+`/api/v1/groups/:groupId/settlements`, and `/api/v1/settlements`. Every endpoint
+requires authentication via the `Authorization: Bearer <jwt>` header.
+
+### Authorization Model
+
+- Any **group member** may view group balances, list the group's settlements,
+  record a settlement, and view an individual settlement.
+- The settlement **sender** (`payerId`) and **receiver** (`payeeId`) must be
+  members of the same group.
+- **Non-members** (or members of another group) receive HTTP 403, preventing
+  cross-group data access.
+
+### Money Representation
+
+All balances and settlement amounts use the same integer **minor units** as
+expenses (see [Money Representation](#money-representation)). Balance math is
+pure `BigInt` arithmetic — no floating-point values are ever produced.
+
+### GET /api/v1/groups/:groupId/balances
+
+Returns each member's net balance for the group, derived at request time from the
+group's expenses, splits, and settlements (no persisted balance column). A
+positive balance is a net credit (owed by the group); a negative balance is a net
+debt. The authenticated requester must be a member.
+
+- `200` — returns `{ success, data: { balances } }`
+- `401` — missing/invalid token
+- `403` — authenticated user is not a member
+- `404` — group does not exist
+
+Response examples:
+
+```json
+{
+  "success": true,
+  "data": {
+    "balances": [
+      { "userId": "<alice-uuid>", "name": "Alice", "email": "alice@example.com", "amountMinorUnits": 160 },
+      { "userId": "<bob-uuid>", "name": "Bob", "email": "bob@example.com", "amountMinorUnits": -60 },
+      { "userId": "<owner-uuid>", "name": "Owner", "email": "owner@example.com", "amountMinorUnits": -100 }
+    ]
+  }
+}
+```
+
+> The sum of all `amountMinorUnits` values always equals zero. Only each member's
+> `id`, `name`, and `email` are returned — never a password hash or other secret.
+
+### POST /api/v1/groups/:groupId/settlements
+
+Records a payment from one group member (sender) to another (receiver) to settle
+debts. The authenticated requester must be a group member.
+
+Request body:
+
+```json
+{
+  "payerId": "<sender-uuid>",
+  "payeeId": "<receiver-uuid>",
+  "amountMinorUnits": 500
+}
+```
+
+Fields:
+- `payerId` — required, sender must be a group member
+- `payeeId` — required, receiver must be a group member and different from `payerId`
+- `amountMinorUnits` — required, positive integer minor units
+
+- `201` — settlement created; returns `{ success, data: { settlement } }`
+- `400` — validation failed, or sender equals receiver
+- `401` — missing/invalid token
+- `403` — requester, sender, or receiver is not a group member
+- `404` — group does not exist
+
+### GET /api/v1/groups/:groupId/settlements
+
+Lists the settlements belonging to a group (newest first), including the sender
+and receiver. The authenticated requester must be a member.
+
+- `200` — returns `{ success, data: { settlements } }`; empty array when the group has none
+- `401` — missing/invalid token
+- `403` — authenticated user is not a member
+- `404` — group does not exist
+
+### GET /api/v1/settlements/:id
+
+Returns a single settlement with its sender and receiver. The authenticated
+requester must be a member of the group the settlement belongs to.
+
+- `200` — returns `{ success, data: { settlement } }`
+- `401` — missing/invalid token
+- `403` — authenticated user is not a member of the settlement's group
+- `404` — settlement does not exist
+
+### Balances & Settlements Internals
+
+The module lives under `src/modules/settlements/` and follows the same layered
+architecture as `auth`, `groups`, and `expenses`. The balance math is factored
+into a pure, deterministic module (`balance.util.ts`) that is unit-tested
+directly. The service owns membership authorization and throws grouped `AppError`
+subclasses (`BadRequestError`, `ForbiddenError`, `NotFoundError`) that the
+centralized error handler serializes. Settlements are recorded as a single atomic
+Prisma write.
 
 ## Database Schema
 
@@ -369,15 +776,17 @@ Routes
   → Prisma       (database)
 ```
 
-Each feature lives under `src/modules/<feature>/`. The `auth` module is the
-first example. Controllers parse the validated request and delegate to the
-service; the service owns rules (e.g. duplicate-email detection, password
-verification, token signing) and throws application errors that the centralized
+Each feature lives under `src/modules/<feature>/`. The `auth`, `groups`,
+`expenses`, and `settlements` modules are the reference examples. Controllers
+parse the validated request and delegate to the service; the service owns rules
+(duplicate-email detection, password verification, token signing, group
+ownership/membership authorization, expense split validation, balance derivation,
+settlement membership rules) and throws application errors that the centralized
 error handler converts to the standard error response.
 
 ## Current Implementation Status
 
-Implemented so far (Chunks 1–3):
+Implemented so far (auth + groups + expenses + balances/settlements foundation):
 
 - TypeScript project configuration (strict mode)
 - Express application with middleware (CORS, Helmet, rate limiting, JSON parsing)
@@ -399,7 +808,23 @@ Implemented so far (Chunks 1–3):
 - bcrypt password hashing (never stored or returned in plaintext)
 - `authenticate` middleware for protecting routes
 - Module-based architecture (`src/modules/auth/`): routes → controller → service → repository → Prisma
-- Test suite (Vitest + Supertest, 32 tests, all passing without a live DB)
+- **Groups & membership API** (`/api/v1/groups` CRUD + add/remove members)
+- Owner/member authorization for groups (`ForbiddenError` / HTTP 403)
+- Group creation with atomic creator-membership Prisma transaction
+- **Expenses & split API** (`/api/v1/groups/:groupId/expenses` create/list, `/api/v1/expenses/:id` detail)
+- Group membership authorization for expenses (requester, payer, and split participants)
+- Deterministic EQUAL split calculation with exact-total remainder distribution
+- EXACT split validation (sum must equal the expense total)
+- Atomic expense + splits creation via a single Prisma transaction
+- Pure, unit-tested split calculation module (`split.util.ts`)
+- **Balance calculation API** (`/api/v1/groups/:groupId/balances`)
+- Balances derived at request time from expenses, splits, and settlements (no persisted balance column)
+- Pure, unit-tested BIGINT balance calculation module (`balance.util.ts`) with a sum-to-zero invariant
+- **Settlement API** (`/api/v1/groups/:groupId/settlements` create/list, `/api/v1/settlements/:id` detail)
+- Group membership authorization for settlements (requester, sender, and receiver)
+- Positive-amount and sender-receiver validation for settlements
+- Cross-group access protection for settlement detail (IDOR guard)
+- Test suite (Vitest + Supertest, 191 tests, all passing without a live DB)
 
 ## Not Yet Implemented
 
@@ -408,10 +833,7 @@ The following features are **NOT implemented** in this chunk:
 - Refresh-token rotation & token revocation (RefreshToken model is reserved for a future chunk)
 - Email verification / password reset
 - User management / profile update endpoints
-- Group API endpoints (create, list, add members, delete)
-- Expense API endpoints (create, list, split, delete)
-- Balance calculation logic
-- Settlement API endpoints (record payments)
+- Expense delete endpoint (creation, list, and detail are implemented)
 - Activity feed generation logic
 
 These will be built on top of this foundation in subsequent chunks.
