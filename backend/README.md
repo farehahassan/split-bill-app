@@ -35,16 +35,22 @@ backend/
 │   │   ├── errorHandler.ts       # Centralized error handling + 404
 │   │   └── validate.ts           # Zod validation middleware
 │   ├── modules/
-│   │   └── auth/                 # Authentication feature module
-│   │       ├── auth.controller.ts
-│   │       ├── auth.repository.ts
-│   │       ├── auth.routes.ts
-│   │       ├── auth.service.ts
+│   │   ├── auth/                 # Authentication feature module
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── auth.repository.ts
+│   │   │   ├── auth.routes.ts
+│   │   │   ├── auth.service.ts
+│   │   │   └── validators.ts
+│   │   └── groups/               # Groups & membership feature module
+│   │       ├── group.controller.ts
+│   │       ├── group.repository.ts
+│   │       ├── group.routes.ts
+│   │       ├── group.service.ts
 │   │       └── validators.ts
 │   ├── routes/
 │   │   ├── health.ts             # GET /health, GET /health/ready
 │   │   ├── index.ts              # /api/v1 router
-│   │   └── v1/index.ts           # Mounts feature modules (auth, etc.)
+│   │   └── v1/index.ts           # Mounts feature modules (auth, groups, ...)
 │   ├── types/
 │   │   └── index.ts              # Shared TypeScript types
 │   ├── utils/
@@ -57,6 +63,8 @@ backend/
 │   ├── app.test.ts               # Application + health + 404 tests
 │   ├── auth.api.test.ts          # Auth endpoint integration tests (mocked DB)
 │   ├── auth.service.test.ts      # Auth service unit tests (mocked repository)
+│   ├── groups.api.test.ts        # Group endpoint integration tests (mocked DB)
+│   ├── groups.service.test.ts    # Group service unit tests (mocked repository)
 │   ├── config.test.ts            # Configuration validation tests
 │   ├── errors.test.ts            # Error class unit tests
 │   ├── asyncHandler.test.ts      # Async handler middleware tests
@@ -193,7 +201,7 @@ All feature endpoints are mounted under `/api/v1`:
 
 - `/api/v1/auth` — Authentication (register, login, current user)
 - `/api/v1/users` — User management (not yet implemented)
-- `/api/v1/groups` — Group management (not yet implemented)
+- `/api/v1/groups` — Group management & membership
 - `/api/v1/expenses` — Expense tracking (not yet implemented)
 - `/api/v1/balances` — Balance calculations (not yet implemented)
 - `/api/v1/settlements` — Settlement recording (not yet implemented)
@@ -283,6 +291,182 @@ Authorization: Bearer <jwt>
   an HTTP status and machine-readable code. The centralized error handler
   serializes them into consistent responses without leaking internals.
 
+## Groups API
+
+Group and membership endpoints live under `/api/v1/groups`. Every group endpoint
+requires authentication via the `Authorization: Bearer <jwt>` header.
+
+### Authorization Model
+
+- **Owner** (the user who created the group, `group.createdById`) may update the
+  group name, delete the group, and add/remove members.
+- **Members** (users with a `GroupMember` record) may view the group detail and
+  member list, and list the group in their own group list.
+- **Non-members** may not view group details; they receive HTTP 403.
+- The group owner is automatically the first member and cannot be removed.
+
+### POST /api/v1/groups
+
+Creates a new group. The authenticated user becomes the owner and is
+automatically added as the first member in a single database transaction.
+
+Request body:
+
+```json
+{
+  "name": "Trip to Naran"
+}
+```
+
+- `name` — required, non-empty string (trimmed)
+
+- `201` — group created; returns `{ success, data: { group } }`
+- `400` — validation failed
+- `401` — missing/invalid token
+
+Response (201):
+
+```json
+{
+  "success": true,
+  "data": {
+    "group": {
+      "id": "<uuid>",
+      "name": "Trip to Naran",
+      "createdById": "<owner-uuid>",
+      "createdAt": "...",
+      "updatedAt": "..."
+    }
+  }
+}
+```
+
+### GET /api/v1/groups
+
+Lists all groups the authenticated user is a member of, including the member count.
+
+- `200` — returns `{ success, data: { groups } }`; an empty array when the user has no groups
+- `401` — missing/invalid token
+
+Response (200):
+
+```json
+{
+  "success": true,
+  "data": {
+    "groups": [
+      {
+        "id": "<uuid>",
+        "name": "Trip to Naran",
+        "createdById": "<owner-uuid>",
+        "memberCount": 5,
+        "createdAt": "...",
+        "updatedAt": "..."
+      }
+    ]
+  }
+}
+```
+
+### GET /api/v1/groups/:id
+
+Returns group details and the full member list. The authenticated user must be a member.
+
+- `200` — returns `{ success, data: { group } }`
+- `401` — missing/invalid token
+- `403` — authenticated user is not a member
+- `404` — group does not exist
+
+Response (200):
+
+```json
+{
+  "success": true,
+  "data": {
+    "group": {
+      "id": "<uuid>",
+      "name": "Trip to Naran",
+      "createdById": "<owner-uuid>",
+      "createdAt": "...",
+      "updatedAt": "...",
+      "members": [
+        { "id": "<uuid>", "name": "Ahmed Raza", "email": "ahmed@example.com" }
+      ]
+    }
+  }
+}
+```
+
+> Only the member's `id`, `name`, and `email` are returned — never a password hash
+> or other sensitive authentication data.
+
+### PUT /api/v1/groups/:id
+
+Updates the group name. The authenticated user must be the owner.
+
+Request body:
+
+```json
+{
+  "name": "Updated Name"
+}
+```
+
+- `200` — group updated; returns `{ success, data: { group } }`
+- `400` — validation failed
+- `401` — missing/invalid token
+- `403` — authenticated user is not the owner
+- `404` — group does not exist
+
+### DELETE /api/v1/groups/:id
+
+Deletes the group. The authenticated user must be the owner. Related records
+(memberships, expenses, settlements, activities) are removed by the existing
+Prisma cascade relationships.
+
+- `204` — group deleted (no response body)
+- `401` — missing/invalid token
+- `403` — authenticated user is not the owner
+- `404` — group does not exist
+
+### POST /api/v1/groups/:id/members
+
+Adds a member to the group. The authenticated user must be the owner.
+
+Request body:
+
+```json
+{
+  "userId": "<target-user-uuid>"
+}
+```
+
+- `201` — member added; returns `{ success, data: { member } }`
+- `400` — validation failed
+- `401` — missing/invalid token
+- `403` — authenticated user is not the owner
+- `404` — group or target user does not exist
+- `409` — target user is already a member
+
+### DELETE /api/v1/groups/:id/members/:memberId
+
+Removes a member from the group. The authenticated user must be the owner. The
+owner cannot be removed.
+
+- `204` — member removed (no response body)
+- `401` — missing/invalid token
+- `403` — authenticated user is not the owner
+- `404` — group or member does not exist
+- `409` — attempting to remove the group owner
+
+### Groups Internals
+
+The groups module lives under `src/modules/groups/` and follows the same layered
+architecture as `auth`: routes → controller → service → repository → Prisma. The
+service owns authorization (ownership and membership checks) and throws grouped
+`AppError` subclasses (`ForbiddenError`, `NotFoundError`, `ConflictError`) that
+the centralized error handler serializes.
+
 ## Database Schema
 
 The Prisma schema is located at `prisma/schema.prisma` and uses PostgreSQL as the datasource provider.
@@ -369,15 +553,16 @@ Routes
   → Prisma       (database)
 ```
 
-Each feature lives under `src/modules/<feature>/`. The `auth` module is the
-first example. Controllers parse the validated request and delegate to the
-service; the service owns rules (e.g. duplicate-email detection, password
-verification, token signing) and throws application errors that the centralized
-error handler converts to the standard error response.
+Each feature lives under `src/modules/<feature>/`. The `auth` and `groups`
+modules are the reference examples. Controllers parse the validated request and
+delegate to the service; the service owns rules (duplicate-email detection,
+password verification, token signing, group ownership/membership authorization)
+and throws application errors that the centralized error handler converts to the
+standard error response.
 
 ## Current Implementation Status
 
-Implemented so far (Chunks 1–3):
+Implemented so far (auth + groups foundation):
 
 - TypeScript project configuration (strict mode)
 - Express application with middleware (CORS, Helmet, rate limiting, JSON parsing)
@@ -399,7 +584,10 @@ Implemented so far (Chunks 1–3):
 - bcrypt password hashing (never stored or returned in plaintext)
 - `authenticate` middleware for protecting routes
 - Module-based architecture (`src/modules/auth/`): routes → controller → service → repository → Prisma
-- Test suite (Vitest + Supertest, 32 tests, all passing without a live DB)
+- **Groups & membership API** (`/api/v1/groups` CRUD + add/remove members)
+- Owner/member authorization for groups (`ForbiddenError` / HTTP 403)
+- Group creation with atomic creator-membership Prisma transaction
+- Test suite (Vitest + Supertest, 95 tests, all passing without a live DB)
 
 ## Not Yet Implemented
 
@@ -408,7 +596,6 @@ The following features are **NOT implemented** in this chunk:
 - Refresh-token rotation & token revocation (RefreshToken model is reserved for a future chunk)
 - Email verification / password reset
 - User management / profile update endpoints
-- Group API endpoints (create, list, add members, delete)
 - Expense API endpoints (create, list, split, delete)
 - Balance calculation logic
 - Settlement API endpoints (record payments)

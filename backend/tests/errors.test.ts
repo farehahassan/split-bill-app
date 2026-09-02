@@ -4,6 +4,7 @@ import { APP_ERRORS } from "../src/constants/app-errors.js";
 import {
   AppError,
   ConflictError,
+  ForbiddenError,
   NotFoundError,
   UnauthorizedError,
 } from "../src/errors/app.error.js";
@@ -39,6 +40,14 @@ describe("AppError class hierarchy", () => {
     expect(error).toBeInstanceOf(AppError);
     expect(error.statusCode).toBe(HTTP_STATUSES.UNAUTHORIZED);
     expect(error.code).toBe(APP_ERRORS.INVALID_CREDENTIALS);
+  });
+
+  it("ForbiddenError should map to 403 Forbidden with the given code", () => {
+    const error = new ForbiddenError(APP_ERRORS.NOT_GROUP_OWNER, "Not allowed.");
+    expect(error).toBeInstanceOf(AppError);
+    expect(error.name).toBe("ForbiddenError");
+    expect(error.statusCode).toBe(HTTP_STATUSES.FORBIDDEN);
+    expect(error.code).toBe(APP_ERRORS.NOT_GROUP_OWNER);
   });
 
   it("NotFoundError should map to 404 Not Found with the given code", () => {
