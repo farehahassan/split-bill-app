@@ -21,6 +21,15 @@ import {
 } from "./group.controller.js";
 import { createExpenseBodySchema, expenseTargetParamsSchema } from "../expenses/validators.js";
 import { createExpense, getGroupExpenses } from "../expenses/expense.controller.js";
+import {
+  createSettlementBodySchema,
+  settlementGroupParamsSchema,
+} from "../settlements/validators.js";
+import {
+  createSettlement,
+  getGroupBalances,
+  getGroupSettlements,
+} from "../settlements/settlement.controller.js";
 
 const router = Router();
 
@@ -74,6 +83,27 @@ router.get(
   authenticate,
   validate({ params: expenseTargetParamsSchema }),
   asyncHandler(getGroupExpenses),
+);
+
+router.get(
+  "/:id/balances",
+  authenticate,
+  validate({ params: settlementGroupParamsSchema }),
+  asyncHandler(getGroupBalances),
+);
+
+router.post(
+  "/:id/settlements",
+  authenticate,
+  validate({ params: settlementGroupParamsSchema, body: createSettlementBodySchema }),
+  asyncHandler(createSettlement),
+);
+
+router.get(
+  "/:id/settlements",
+  authenticate,
+  validate({ params: settlementGroupParamsSchema }),
+  asyncHandler(getGroupSettlements),
 );
 
 export default router;
