@@ -24,6 +24,15 @@ export class AppError extends Error {
 }
 
 /**
+ * The request is malformed or violates a business rule (HTTP 400).
+ */
+export class BadRequestError extends AppError {
+  constructor(code: string, message: string) {
+    super(HTTP_STATUSES.BAD_REQUEST, code, message);
+  }
+}
+
+/**
  * Resource already exists or conflicts with existing data (HTTP 409).
  */
 export class ConflictError extends AppError {

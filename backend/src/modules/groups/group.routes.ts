@@ -19,6 +19,8 @@ import {
   removeGroupMember,
   updateGroup,
 } from "./group.controller.js";
+import { createExpenseBodySchema, expenseTargetParamsSchema } from "../expenses/validators.js";
+import { createExpense, getGroupExpenses } from "../expenses/expense.controller.js";
 
 const router = Router();
 
@@ -58,6 +60,20 @@ router.delete(
   authenticate,
   validate({ params: memberParamsSchema }),
   asyncHandler(removeGroupMember),
+);
+
+router.post(
+  "/:id/expenses",
+  authenticate,
+  validate({ params: expenseTargetParamsSchema, body: createExpenseBodySchema }),
+  asyncHandler(createExpense),
+);
+
+router.get(
+  "/:id/expenses",
+  authenticate,
+  validate({ params: expenseTargetParamsSchema }),
+  asyncHandler(getGroupExpenses),
 );
 
 export default router;

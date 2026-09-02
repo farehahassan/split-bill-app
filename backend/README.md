@@ -47,10 +47,17 @@ backend/
 │   │       ├── group.routes.ts
 │   │       ├── group.service.ts
 │   │       └── validators.ts
+│   │   └── expenses/              # Expenses & split calculation feature module
+│   │       ├── expense.controller.ts
+│   │       ├── expense.repository.ts
+│   │       ├── expense.routes.ts
+│   │       ├── expense.service.ts
+│   │       ├── split.util.ts      # Pure EQUAL/EXACT split calculation helpers
+│   │       └── validators.ts
 │   ├── routes/
 │   │   ├── health.ts             # GET /health, GET /health/ready
 │   │   ├── index.ts              # /api/v1 router
-│   │   └── v1/index.ts           # Mounts feature modules (auth, groups, ...)
+│   │   └── v1/index.ts           # Mounts feature modules (auth, groups, expenses, ...)
 │   ├── types/
 │   │   └── index.ts              # Shared TypeScript types
 │   ├── utils/
@@ -65,6 +72,9 @@ backend/
 │   ├── auth.service.test.ts      # Auth service unit tests (mocked repository)
 │   ├── groups.api.test.ts        # Group endpoint integration tests (mocked DB)
 │   ├── groups.service.test.ts    # Group service unit tests (mocked repository)
+│   ├── expenses.api.test.ts      # Expense endpoint integration tests (mocked DB)
+│   ├── expenses.service.test.ts  # Expense service unit tests (mocked repository)
+│   ├── split.util.test.ts        # Split calculation unit tests
 │   ├── config.test.ts            # Configuration validation tests
 │   ├── errors.test.ts            # Error class unit tests
 │   ├── asyncHandler.test.ts      # Async handler middleware tests
@@ -202,7 +212,7 @@ All feature endpoints are mounted under `/api/v1`:
 - `/api/v1/auth` — Authentication (register, login, current user)
 - `/api/v1/users` — User management (not yet implemented)
 - `/api/v1/groups` — Group management & membership
-- `/api/v1/expenses` — Expense tracking (not yet implemented)
+- `/api/v1/expenses` — Expense tracking & split calculation
 - `/api/v1/balances` — Balance calculations (not yet implemented)
 - `/api/v1/settlements` — Settlement recording (not yet implemented)
 - `/api/v1/activity` — Activity feed (not yet implemented)
@@ -467,6 +477,103 @@ service owns authorization (ownership and membership checks) and throws grouped
 `AppError` subclasses (`ForbiddenError`, `NotFoundError`, `ConflictError`) that
 the centralized error handler serializes.
 
+## Expenses API
+
+Expense endpoints live under `/api/v1/groups/:groupId/expenses` and
+`/api/v1/expenses`. Every expense endpoint requires authentication via the
+`Authorization: Bearer <jwt>` header.
+
+### Authorization Model
+
+- Any **group member** may create an expense in the group, list the group's
+  expenses, and view an individual expense.
+- The **payer** (who paid for the expense) must be a member of the same group.
+- Every **split participant** must be a member of the same group — arbitrary
+  users outside the group cannot appear in a split.
+- **Non-members** (or members of another group) cannot create, list, or view the
+  group's expenses; they receive HTTP 403.
+
+### Money Representation
+
+All amounts are expressed as **integer minor units** (e.g. paisa for PKR), stored
+as `BigInt` in the database — see [Money Representation](#money-representation).
+The API accepts and returns whole-number minor units and never uses
+floating-point arithmetic for split calculations.
+
+### POST /api/v1/groups/:groupId/expenses
+
+Creates an expense and its `ExpenseSplit` records inside a single database
+transaction. The authenticated requester must be a member of the group.
+
+Request body:
+
+```json
+{
+  "description": "Dinner",
+  "amountMinorUnits": 1000,
+  "payerId": "<member-uuid>",
+  "splitType": "EQUAL",
+  "participants": [
+    { "userId": "<member-uuid>" },
+    { "userId": "<member-uuid>" },
+    { "userId": "<member-uuid>" }
+  ],
+  "expenseDate": "2026-01-01T00:00:00.000Z"
+}
+```
+
+Fields:
+- `description` — required, non-empty string (trimmed)
+- `amountMinorUnits` — required, positive integer minor units
+- `payerId` — required, must be a member of the group
+- `splitType` — required, `EQUAL` or `EXACT`
+- `participants` — required, non-empty array of member user IDs; each user must
+  be a group member and appear at most once
+- `expenseDate` — optional RFC-3339 date, defaults to the server time
+
+**EQUAL:** the total is divided into equal shares; any smallest-unit remainder is
+assigned one extra minor unit to the first participants, so the shares always sum
+to the total exactly (e.g. `1000` across 3 → `334`, `333`, `333`).
+
+**EXACT:** each participant must provide an `amountMinorUnits`; the provided
+amounts must sum to the expense total exactly.
+
+- `201` — expense created; returns `{ success, data: { expense } }` with splits
+- `400` — validation failed, duplicate participant, or EXACT split total mismatch
+- `401` — missing/invalid token
+- `403` — requester, payer, or a split participant is not a group member
+- `404` — group does not exist
+
+### GET /api/v1/groups/:groupId/expenses
+
+Lists the expenses belonging to a group, newest first, including the payer and a
+split count. The authenticated requester must be a member of the group.
+
+- `200` — returns `{ success, data: { expenses } }`; empty array when the group has none
+- `401` — missing/invalid token
+- `403` — authenticated user is not a member
+- `404` — group does not exist
+
+### GET /api/v1/expenses/:id
+
+Returns a single expense with its full split details (including each
+participant's `id`, `name`, and `email`). The authenticated requester must be a
+member of the group the expense belongs to.
+
+- `200` — returns `{ success, data: { expense } }`
+- `401` — missing/invalid token
+- `403` — authenticated user is not a member of the expense's group
+- `404` — expense does not exist
+
+### Expenses Internals
+
+The expenses module lives under `src/modules/expenses/` and follows the same
+layered architecture as `auth` and `groups`. The split math is factored into a
+pure, deterministic module (`split.util.ts`) that is unit-tested directly. The
+service owns validation of group/payer/participant membership and split
+reconciliation, and throws grouped `AppError` subclasses (`BadRequestError`,
+`ForbiddenError`, `NotFoundError`) that the centralized error handler serializes.
+
 ## Database Schema
 
 The Prisma schema is located at `prisma/schema.prisma` and uses PostgreSQL as the datasource provider.
@@ -553,16 +660,16 @@ Routes
   → Prisma       (database)
 ```
 
-Each feature lives under `src/modules/<feature>/`. The `auth` and `groups`
-modules are the reference examples. Controllers parse the validated request and
-delegate to the service; the service owns rules (duplicate-email detection,
-password verification, token signing, group ownership/membership authorization)
-and throws application errors that the centralized error handler converts to the
-standard error response.
+Each feature lives under `src/modules/<feature>/`. The `auth`, `groups`, and
+`expenses` modules are the reference examples. Controllers parse the validated
+request and delegate to the service; the service owns rules (duplicate-email
+detection, password verification, token signing, group ownership/membership
+authorization, expense split validation) and throws application errors that the
+centralized error handler converts to the standard error response.
 
 ## Current Implementation Status
 
-Implemented so far (auth + groups foundation):
+Implemented so far (auth + groups + expenses foundation):
 
 - TypeScript project configuration (strict mode)
 - Express application with middleware (CORS, Helmet, rate limiting, JSON parsing)
@@ -587,7 +694,13 @@ Implemented so far (auth + groups foundation):
 - **Groups & membership API** (`/api/v1/groups` CRUD + add/remove members)
 - Owner/member authorization for groups (`ForbiddenError` / HTTP 403)
 - Group creation with atomic creator-membership Prisma transaction
-- Test suite (Vitest + Supertest, 95 tests, all passing without a live DB)
+- **Expenses & split API** (`/api/v1/groups/:groupId/expenses` create/list, `/api/v1/expenses/:id` detail)
+- Group membership authorization for expenses (requester, payer, and split participants)
+- Deterministic EQUAL split calculation with exact-total remainder distribution
+- EXACT split validation (sum must equal the expense total)
+- Atomic expense + splits creation via a single Prisma transaction
+- Pure, unit-tested split calculation module (`split.util.ts`)
+- Test suite (Vitest + Supertest, 141 tests, all passing without a live DB)
 
 ## Not Yet Implemented
 
@@ -596,7 +709,7 @@ The following features are **NOT implemented** in this chunk:
 - Refresh-token rotation & token revocation (RefreshToken model is reserved for a future chunk)
 - Email verification / password reset
 - User management / profile update endpoints
-- Expense API endpoints (create, list, split, delete)
+- Expense delete endpoint (creation, list, and detail are implemented)
 - Balance calculation logic
 - Settlement API endpoints (record payments)
 - Activity feed generation logic

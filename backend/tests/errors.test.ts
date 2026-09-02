@@ -3,6 +3,7 @@ import { HTTP_STATUSES } from "../src/constants/http-statuses.js";
 import { APP_ERRORS } from "../src/constants/app-errors.js";
 import {
   AppError,
+  BadRequestError,
   ConflictError,
   ForbiddenError,
   NotFoundError,
@@ -33,6 +34,14 @@ describe("AppError class hierarchy", () => {
     expect(error.name).toBe("ConflictError");
     expect(error.statusCode).toBe(HTTP_STATUSES.CONFLICT);
     expect(error.code).toBe(APP_ERRORS.EMAIL_IN_USE);
+  });
+
+  it("BadRequestError should map to 400 Bad Request with the given code", () => {
+    const error = new BadRequestError(APP_ERRORS.SPLIT_TOTAL_MISMATCH, "Splits must sum to total.");
+    expect(error).toBeInstanceOf(AppError);
+    expect(error.name).toBe("BadRequestError");
+    expect(error.statusCode).toBe(HTTP_STATUSES.BAD_REQUEST);
+    expect(error.code).toBe(APP_ERRORS.SPLIT_TOTAL_MISMATCH);
   });
 
   it("UnauthorizedError should map to 401 Unauthorized with the given code", () => {
