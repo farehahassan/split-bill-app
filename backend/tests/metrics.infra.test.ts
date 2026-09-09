@@ -166,6 +166,8 @@ describe("Observability catalog", () => {
       "users_registered_total",
       "groups_created_total",
       "expenses_created_total",
+      "expenses_updated_total",
+      "expenses_deleted_total",
       "settlements_created_total",
       "activity_events_created_total",
       "background_jobs_succeeded_total",

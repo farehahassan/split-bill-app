@@ -57,6 +57,30 @@ export class AuthRepository {
     return toAuthUser(user);
   }
 
+  /**
+   * Updates the user's public profile fields. Returns `null` instead of
+   * throwing when the user no longer exists, so the service can produce a
+   * `USER_NOT_FOUND` error without leaking a Prisma failure code.
+   */
+  async update(id: string, data: { name?: string; email?: string }): Promise<AuthUser | null> {
+    const existing = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) {
+      return null;
+    }
+
+    const user = await prisma.user.update({
+      where: { id },
+      data: {
+        name: data.name,
+        email: data.email,
+      },
+    });
+    return toAuthUser(user);
+  }
+
   findRefreshTokenByHash(tokenHash: string): Promise<RefreshTokenRecord | null> {
     return prisma.refreshToken.findUnique({
       where: { tokenHash },

@@ -26,6 +26,8 @@ vi.mock("../src/db/prisma.js", async () => {
         create: vi.fn(),
         findUnique: vi.fn(),
         findMany: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
       },
     },
   };
@@ -108,6 +110,8 @@ describe("Expenses API", () => {
     mockPrisma.expense.create.mockReset();
     mockPrisma.expense.findUnique.mockReset();
     mockPrisma.expense.findMany.mockReset();
+    mockPrisma.expense.update.mockReset();
+    mockPrisma.expense.delete.mockReset();
     app = createApp();
   });
 
@@ -397,6 +401,184 @@ describe("Expenses API", () => {
       expect(res.status).toBe(HTTP_STATUSES.OK);
       expect(JSON.stringify(res.body)).not.toContain("passwordHash");
       expect(JSON.stringify(res.body)).not.toContain("password");
+    });
+  });
+
+  describe("PATCH /api/v1/expenses/:id", () => {
+    const members = [
+      { userId: ownerId },
+      { userId: payerId },
+      { userId: memberId },
+    ];
+
+    function mockUpdateTransaction(updated: typeof storedExpense) {
+      mockPrisma.$transaction.mockImplementation(async (fn) => {
+        const tx = {
+          expense: { update: vi.fn().mockResolvedValue(updated) },
+          activityEvent: { create: vi.fn().mockResolvedValue({ id: "event-1" }) },
+        };
+        return fn(tx);
+      });
+    }
+
+    it("should update the description and recompute EQUAL splits for a member", async () => {
+      mockPrisma.expense.findUnique.mockResolvedValue(storedExpense());
+      mockPrisma.groupMember.findMany.mockResolvedValue(members);
+      const updated = storedExpense({ description: "Lunch", amountMinorUnits: 1200n });
+      mockUpdateTransaction(updated);
+
+      const res = await request(app)
+        .patch("/api/v1/expenses/expense-1")
+        .set("Authorization", `Bearer ${signToken(memberId)}`)
+        .send({ description: "Lunch", amountMinorUnits: 1200 });
+
+      expect(res.status).toBe(HTTP_STATUSES.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.expense.description).toBe("Lunch");
+      expect(res.body.data.expense.amountMinorUnits).toBe(1200);
+    });
+
+    it("should replace participants when provided", async () => {
+      mockPrisma.expense.findUnique.mockResolvedValue(storedExpense());
+      mockPrisma.groupMember.findMany.mockResolvedValue(members);
+      const updated = storedExpense({ splitType: "EXACT" });
+      mockUpdateTransaction(updated);
+
+      const res = await request(app)
+        .patch("/api/v1/expenses/expense-1")
+        .set("Authorization", `Bearer ${signToken(memberId)}`)
+        .send({
+          splitType: "EXACT",
+          participants: [
+            { userId: payerId, amountMinorUnits: 700 },
+            { userId: memberId, amountMinorUnits: 300 },
+          ],
+        });
+
+      expect(res.status).toBe(HTTP_STATUSES.OK);
+    });
+
+    it("should return 401 without authentication", async () => {
+      const res = await request(app)
+        .patch("/api/v1/expenses/expense-1")
+        .send({ description: "Lunch" });
+
+      expect(res.status).toBe(HTTP_STATUSES.UNAUTHORIZED);
+    });
+
+    it("should return 403 for a non-member requester", async () => {
+      mockPrisma.expense.findUnique.mockResolvedValue(storedExpense());
+      mockPrisma.groupMember.findMany.mockResolvedValue(members);
+
+      const res = await request(app)
+        .patch("/api/v1/expenses/expense-1")
+        .set("Authorization", `Bearer ${signToken(outsiderId)}`)
+        .send({ description: "Lunch" });
+
+      expect(res.status).toBe(HTTP_STATUSES.FORBIDDEN);
+    });
+
+    it("should return 404 when the expense does not exist", async () => {
+      mockPrisma.expense.findUnique.mockResolvedValue(null);
+
+      const res = await request(app)
+        .patch("/api/v1/expenses/missing")
+        .set("Authorization", `Bearer ${signToken(ownerId)}`)
+        .send({ description: "Lunch" });
+
+      expect(res.status).toBe(HTTP_STATUSES.NOT_FOUND);
+    });
+
+    it("should return 400 for an empty body", async () => {
+      const res = await request(app)
+        .patch("/api/v1/expenses/expense-1")
+        .set("Authorization", `Bearer ${signToken(memberId)}`)
+        .send({});
+
+      expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
+      expect(mockPrisma.expense.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("should return 400 when EXACT amounts no longer sum to the new total", async () => {
+      const exactExpense = storedExpense({ splitType: "EXACT" });
+      mockPrisma.expense.findUnique.mockResolvedValue(exactExpense);
+      mockPrisma.groupMember.findMany.mockResolvedValue(members);
+
+      const res = await request(app)
+        .patch("/api/v1/expenses/expense-1")
+        .set("Authorization", `Bearer ${signToken(memberId)}`)
+        .send({ amountMinorUnits: 5000 });
+
+      expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("should return 403 when the new payer is not a group member", async () => {
+      mockPrisma.expense.findUnique.mockResolvedValue(storedExpense());
+      mockPrisma.groupMember.findMany.mockResolvedValue(members);
+
+      const res = await request(app)
+        .patch("/api/v1/expenses/expense-1")
+        .set("Authorization", `Bearer ${signToken(memberId)}`)
+        .send({ payerId: outsiderId });
+
+      expect(res.status).toBe(HTTP_STATUSES.FORBIDDEN);
+    });
+  });
+
+  describe("DELETE /api/v1/expenses/:id", () => {
+    it("should delete the expense and return 204 for a member", async () => {
+      mockPrisma.expense.findUnique.mockResolvedValue(storedExpense());
+      mockPrisma.groupMember.findMany.mockResolvedValue([
+        { userId: ownerId },
+        { userId: payerId },
+        { userId: memberId },
+      ]);
+      mockPrisma.$transaction.mockImplementation(async (fn) => {
+        const tx = {
+          expense: { delete: vi.fn().mockResolvedValue(storedExpense()) },
+          activityEvent: { create: vi.fn().mockResolvedValue({ id: "event-1" }) },
+        };
+        return fn(tx);
+      });
+
+      const res = await request(app)
+        .delete("/api/v1/expenses/expense-1")
+        .set("Authorization", `Bearer ${signToken(memberId)}`);
+
+      expect(res.status).toBe(HTTP_STATUSES.NO_CONTENT);
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+
+    it("should return 401 without authentication", async () => {
+      const res = await request(app).delete("/api/v1/expenses/expense-1");
+
+      expect(res.status).toBe(HTTP_STATUSES.UNAUTHORIZED);
+    });
+
+    it("should return 403 for a non-member requester", async () => {
+      mockPrisma.expense.findUnique.mockResolvedValue(storedExpense());
+      mockPrisma.groupMember.findMany.mockResolvedValue([
+        { userId: ownerId },
+        { userId: payerId },
+        { userId: memberId },
+      ]);
+
+      const res = await request(app)
+        .delete("/api/v1/expenses/expense-1")
+        .set("Authorization", `Bearer ${signToken(outsiderId)}`);
+
+      expect(res.status).toBe(HTTP_STATUSES.FORBIDDEN);
+    });
+
+    it("should return 404 when the expense does not exist", async () => {
+      mockPrisma.expense.findUnique.mockResolvedValue(null);
+
+      const res = await request(app)
+        .delete("/api/v1/expenses/missing")
+        .set("Authorization", `Bearer ${signToken(ownerId)}`);
+
+      expect(res.status).toBe(HTTP_STATUSES.NOT_FOUND);
     });
   });
 });

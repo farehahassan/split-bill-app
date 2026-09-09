@@ -28,6 +28,17 @@ export const refreshTokenBodySchema = z
   })
   .strict();
 
+export const updateProfileBodySchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(100, "Name is too long").optional(),
+    email: emailSchema.optional(),
+  })
+  .strict()
+  .refine((data) => data.name !== undefined || data.email !== undefined, {
+    message: "At least one of name or email is required",
+  });
+
 export type RegisterBody = z.infer<typeof registerBodySchema>;
 export type LoginBody = z.infer<typeof loginBodySchema>;
 export type RefreshTokenBody = z.infer<typeof refreshTokenBodySchema>;
+export type UpdateProfileBody = z.infer<typeof updateProfileBodySchema>;

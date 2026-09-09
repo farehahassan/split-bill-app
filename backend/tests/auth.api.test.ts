@@ -1,9 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import request from "supertest";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 import { createApp } from "../src/app.js";
 import { HTTP_STATUSES } from "../src/constants/http-statuses.js";
+
+const JWT_SECRET = "test-secret-that-is-long-enough-for-tests";
+
+function signToken(userId: string): string {
+  return jwt.sign({ sub: userId, email: "me@example.com" }, JWT_SECRET, { expiresIn: "1h" });
+}
 
 vi.mock("../src/db/prisma.js", async () => {
   const findUnique = vi.fn();
@@ -15,6 +22,7 @@ vi.mock("../src/db/prisma.js", async () => {
       user: {
         findUnique,
         create,
+        update: vi.fn(),
       },
       refreshToken: {
         findUnique: vi.fn(),
@@ -30,6 +38,7 @@ import { hashRefreshToken } from "../src/modules/auth/refresh-token.util.js";
 
 const mockFindUnique = vi.mocked(prisma.user.findUnique);
 const mockCreate = vi.mocked(prisma.user.create);
+const mockUpdate = vi.mocked(prisma.user.update);
 const mockRefreshFindUnique = vi.mocked(prisma.refreshToken.findUnique);
 const mockRefreshCreate = vi.mocked(prisma.refreshToken.create);
 const mockRefreshUpdateMany = vi.mocked(prisma.refreshToken.updateMany);
@@ -323,6 +332,108 @@ describe("Authentication API", () => {
 
       expect(res.status).toBe(HTTP_STATUSES.UNAUTHORIZED);
       expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe("PATCH /api/v1/auth/me", () => {
+    it("should return 401 without a token", async () => {
+      const res = await request(app).patch("/api/v1/auth/me").send({ name: "New Name" });
+
+      expect(res.status).toBe(HTTP_STATUSES.UNAUTHORIZED);
+      expect(res.body.success).toBe(false);
+    });
+
+    it("should update the name and email and return 200 with the updated profile", async () => {
+      mockFindUnique
+        .mockResolvedValueOnce(existingUser)
+        .mockResolvedValueOnce(existingUser)
+        .mockResolvedValue(existingUser);
+      mockUpdate.mockResolvedValue({ ...existingUser, name: "New Name", email: "new@example.com" });
+
+      const res = await request(app)
+        .patch("/api/v1/auth/me")
+        .set("Authorization", `Bearer ${signToken("user-1")}`)
+        .send({ name: "New Name", email: "new@example.com" });
+
+      expect(res.status).toBe(HTTP_STATUSES.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.user.name).toBe("New Name");
+      expect(res.body.data.user.email).toBe("new@example.com");
+      expect(res.body.data.user.passwordHash).toBeUndefined();
+      expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: { name: "New Name", email: "new@example.com" } }));
+    });
+
+    it("should return 409 when the email belongs to another account", async () => {
+      mockFindUnique
+        .mockResolvedValueOnce(existingUser)
+        .mockResolvedValueOnce({ ...existingUser, id: "user-2" });
+
+      const res = await request(app)
+        .patch("/api/v1/auth/me")
+        .set("Authorization", `Bearer ${signToken("user-1")}`)
+        .send({ email: "taken@example.com" });
+
+      expect(res.status).toBe(HTTP_STATUSES.CONFLICT);
+      expect(res.body.success).toBe(false);
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it("should allow keeping the current email (same user)", async () => {
+      mockFindUnique.mockResolvedValue(existingUser);
+      mockUpdate.mockResolvedValue({ ...existingUser, name: "Renamed" });
+
+      const res = await request(app)
+        .patch("/api/v1/auth/me")
+        .set("Authorization", `Bearer ${signToken("user-1")}`)
+        .send({ name: "Renamed", email: "ahmed@example.com" });
+
+      expect(res.status).toBe(HTTP_STATUSES.OK);
+      expect(res.body.data.user.name).toBe("Renamed");
+    });
+
+    it("should return 404 when the authenticated user no longer exists", async () => {
+      mockFindUnique.mockResolvedValue(null);
+
+      const res = await request(app)
+        .patch("/api/v1/auth/me")
+        .set("Authorization", `Bearer ${signToken("missing-user")}`)
+        .send({ name: "Ghost" });
+
+      expect(res.status).toBe(HTTP_STATUSES.NOT_FOUND);
+      expect(res.body.success).toBe(false);
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it("should return 400 for an empty body", async () => {
+      const res = await request(app)
+        .patch("/api/v1/auth/me")
+        .set("Authorization", `Bearer ${signToken("user-1")}`)
+        .send({});
+
+      expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
+      expect(res.body.success).toBe(false);
+      expect(mockFindUnique).not.toHaveBeenCalled();
+    });
+
+    it("should return 400 for invalid fields", async () => {
+      const res = await request(app)
+        .patch("/api/v1/auth/me")
+        .set("Authorization", `Bearer ${signToken("user-1")}`)
+        .send({ name: "", email: "not-an-email" });
+
+      expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
+      expect(res.body.success).toBe(false);
+    });
+
+    it("should reject privileged fields outright", async () => {
+      const res = await request(app)
+        .patch("/api/v1/auth/me")
+        .set("Authorization", `Bearer ${signToken("user-1")}`)
+        .send({ name: "New Name", password: "hacked" });
+
+      expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
+      expect(res.body.success).toBe(false);
+      expect(mockUpdate).not.toHaveBeenCalled();
     });
   });
 });

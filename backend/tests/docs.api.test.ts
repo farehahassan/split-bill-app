@@ -47,7 +47,7 @@ async function probeOperations(
   const probes: OperationProbe[] = [];
 
   for (const [path, pathItem] of Object.entries(document.paths)) {
-    for (const method of ["get", "post", "put", "delete"] as const) {
+    for (const method of ["get", "post", "put", "patch", "delete"] as const) {
       const op = pathItem[method];
       if (!op?.operationId) continue;
 
@@ -209,7 +209,7 @@ describe("API documentation routes", () => {
       for (const method of checkable) {
         const documentedMatch = Object.entries(document.paths).some(
           ([path, item]) =>
-            item[method.toLowerCase() as "get" | "post" | "put" | "delete"] &&
+            item[method.toLowerCase() as "get" | "post" | "put" | "patch" | "delete"] &&
             path.endsWith(leaf),
         );
         expect(

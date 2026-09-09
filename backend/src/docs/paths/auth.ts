@@ -175,6 +175,48 @@ const authPaths: Record<string, PathItemObject> = {
         404: componentResponse("NotFound"),
       },
     },
+    patch: {
+      tags: [AUTH_TAG],
+      summary: "Update the current user",
+      description:
+        "Updates the authenticated user's public profile. At least one of `name` or `email` is required; " +
+        "both may be supplied. The email must be unused by another account. " +
+        "Privileged fields are rejected outright. Protected endpoint.",
+      operationId: "updateCurrentUser",
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: ref("UpdateCurrentUserRequest"),
+            example: { name: "Ahmed Raza" },
+          },
+        },
+      },
+      responses: {
+        200: jsonResponse(
+          "The updated profile.",
+          successEnvelope({
+            type: "object",
+            properties: { user: ref("User") },
+            required: ["user"],
+          }),
+          {
+            success: true,
+            data: {
+              user: {
+                id: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+                name: "Ahmed Raza",
+                email: "ahmed@example.com",
+              },
+            },
+          },
+        ),
+        400: componentResponse("BadRequest"),
+        401: componentResponse("Unauthorized"),
+        404: componentResponse("NotFound"),
+        409: componentResponse("Conflict"),
+      },
+    },
   },
 };
 

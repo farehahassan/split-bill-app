@@ -657,7 +657,6 @@ accordingly; nothing about the edge layer conflicts with that.
 All feature endpoints are mounted under `/api/v1`:
 
 - `/api/v1/auth` — Authentication (register, login, refresh, logout, current user)
-- `/api/v1/users` — User management (not yet implemented)
 - `/api/v1/groups` — Group management & membership
 - `/api/v1/expenses` — Expense tracking & split calculation
 - `/api/v1/settlements` — Settlement recording & balance calculation
@@ -780,6 +779,29 @@ Authorization: Bearer <jwt>
 - `200` — success; returns `{ success, data: { user } }`
 - `401` — missing, malformed, invalid, or expired token
 - `404` — the authenticated user no longer exists
+
+### PATCH /api/v1/auth/me
+
+Updates the authenticated user's public profile. Requires a `Bearer` token.
+At least one of `name` or `email` is required; both may be supplied. The email
+is validated and must not be in use by another account. Privileged fields
+(e.g. `password` or `role`) are rejected outright. The response is the updated
+profile and never includes the password hash.
+
+Request body:
+
+```json
+{
+  "name": "Ahmed Raza",
+  "email": "ahmed@example.com"
+}
+```
+
+- `200` — success; returns `{ success, data: { user } }`
+- `400` — validation failed (including an empty body)
+- `401` — missing, malformed, invalid, or expired token
+- `404` — the authenticated user no longer exists
+- `409` — the email is already in use by another account
 
 ### Authentication Internals
 
@@ -1075,6 +1097,47 @@ member of the group the expense belongs to.
 - `403` — authenticated user is not a member of the expense's group
 - `404` — expense does not exist
 
+### PATCH /api/v1/expenses/:id
+
+Partially updates an expense. The authenticated requester must be a member of
+the group the expense belongs to. At least one field is required. `EQUAL` splits
+are always recomputed, so changing the total also redistributes the existing
+participants (equal splits always sum to the total). With `EXACT` splits the
+provided amounts must sum to the total; when `participants` is omitted the
+existing participant set and amounts are kept and only the sum is re-validated
+against the (possibly new) total. The payer must be a group member and every
+participant must be a group member. The currency is never editable. The expense,
+its splits, and an `EXPENSE_UPDATED` activity event are persisted atomically.
+
+Allowed fields (all optional):
+
+- `description` — non-empty string, max 280 characters
+- `amountMinorUnits` — non-negative integer minor units
+- `payerId` — the member who paid for the expense
+- `splitType` — `EQUAL` or `EXACT`
+- `participants` — replaces the participant set: `[{ userId, amountMinorUnits? }]`
+- `expenseDate` — ISO 8601 date with offset
+
+- `200` — returns `{ success, data: { expense } }` with the recomputed splits
+- `400` — validation failed (empty body, EXACT amounts not summing to the total, duplicate participants)
+- `401` — missing/invalid token
+- `403` — requester, payer, or a participant is not a group member
+- `404` — expense does not exist
+
+### DELETE /api/v1/expenses/:id
+
+Deletes an expense and its splits. The authenticated requester must be a member
+of the group the expense belongs to. Deletes the expense and records an
+`EXPENSE_DELETED` activity event carrying the deleted amount and currency in a
+single transaction, so the group's activity feed remains a faithful audit trail.
+Group balances are always derived from the remaining expenses; the summary
+snapshot is recomputed via the existing recompute job.
+
+- `204` — deleted; no body
+- `401` — missing/invalid token
+- `403` — authenticated user is not a member of the expense's group
+- `404` — expense does not exist
+
 ### Expenses Internals
 
 The expenses module lives under `src/modules/expenses/` and follows the same
@@ -1274,9 +1337,9 @@ endpoint requires authentication via the `Authorization: Bearer <jwt>` header.
 ### Purpose
 
 Activity events form a historical, auditable record of meaningful actions within
-a group (group creation, members added, expenses added, settlements recorded).
-They are **not** the source of truth for financial calculation. Balances remain
-derived from expenses, splits, and settlements only.
+a group (group creation, members added/removed, expenses added/updated/deleted,
+settlements recorded). They are **not** the source of truth for financial
+calculation. Balances remain derived from expenses, splits, and settlements only.
 
 ### Authorization Model
 
@@ -1329,7 +1392,8 @@ Response (200):
 }
 ```
 
-Supported `type` values: `GROUP_CREATED`, `MEMBER_ADDED`, `EXPENSE_ADDED`,
+Supported `type` values: `GROUP_CREATED`, `GROUP_UPDATED`, `MEMBER_ADDED`,
+`MEMBER_REMOVED`, `EXPENSE_ADDED`, `EXPENSE_UPDATED`, `EXPENSE_DELETED`,
 `SETTLEMENT_ADDED`. Events are filtered by `groupId` and paginated at the
 database level; only the actor's `id`, `name`, and `email` are returned — never
 a password hash or other sensitive authentication data.
@@ -1340,9 +1404,9 @@ The module lives under `src/modules/activity/` and follows the same layered
 architecture as the other modules. Activity reads go through
 `ActivityService.getGroupActivity` with database-level filtering, ordering, and
 pagination. Activity writes are emitted inside the *same* Prisma transactions as
-the domain operations that produce them (group creation, member add, expense
-creation, settlement creation), so a domain record can never be committed
-without its corresponding activity event.
+the domain operations that produce them (group creation/rename, member
+add/remove, expense creation/update/deletion, settlement creation), so a domain
+record can never be committed without its corresponding activity event.
 
 ## Group Summary API
 
@@ -1544,23 +1608,26 @@ Implemented so far (auth + groups + expenses + balances/settlements + activity f
 - Centralized Prisma client module with lifecycle utilities
 - Readiness endpoint (`/health/ready`) with mocked DB check in tests
 - Database scripts (`db:generate`, `db:migrate`, `db:migrate:dev`, `db:studio`, `db:validate`)
-- **Authentication API** (`/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`, `/api/v1/auth/me`)
+- **Authentication API** (`/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`, `/api/v1/auth/me` GET + PATCH)
 - JWT token signing/verification with configurable secret and lifetime
 - bcrypt password hashing (never stored or returned in plaintext)
 - Opaque refresh tokens with SHA-256 hashing at rest (`RefreshToken.tokenHash`)
 - Atomic refresh-token rotation (conditional revoke + replacement in one transaction)
 - Revocation-based session logout (idempotent) and `REFRESH_TOKEN_INVALID` safe errors
 - `authenticate` middleware for protecting routes
+- **Profile update** (`PATCH /api/v1/auth/me`) — name/email update with email-uniqueness enforcement and strict rejection of privileged fields
 - Module-based architecture (`src/modules/auth/`): routes → controller → service → repository → Prisma
 - **Groups & membership API** (`/api/v1/groups` CRUD + add/remove members)
 - Owner/member authorization for groups (`ForbiddenError` / HTTP 403)
 - Group creation with atomic creator-membership Prisma transaction
-- **Expenses & split API** (`/api/v1/groups/:groupId/expenses` create/list, `/api/v1/expenses/:id` detail)
+- **Expenses & split API** (`/api/v1/groups/:groupId/expenses` create/list, `/api/v1/expenses/:id` detail + PATCH + DELETE)
 - Group membership authorization for expenses (requester, payer, and split participants)
 - Deterministic EQUAL split calculation with exact-total remainder distribution
 - EXACT split validation (sum must equal the expense total)
 - Atomic expense + splits creation via a single Prisma transaction
 - Pure, unit-tested split calculation module (`split.util.ts`)
+- **Expense update** (`PATCH /api/v1/expenses/:id`) — partial update that merges over the current expense, recomputes splits, and persists expense + splits + `EXPENSE_UPDATED` activity event atomically
+- **Expense delete** (`DELETE /api/v1/expenses/:id`) — deletes the expense (splits cascade) and records an `EXPENSE_DELETED` activity event carrying the deleted amount/currency in the same transaction
 - **Balance calculation API** (`/api/v1/groups/:groupId/balances`)
 - Balances derived at request time from expenses, splits, and settlements (no persisted balance column)
 - Pure, unit-tested BIGINT balance calculation module (`balance.util.ts`) with a sum-to-zero invariant
@@ -1575,7 +1642,7 @@ Implemented so far (auth + groups + expenses + balances/settlements + activity f
 - Group membership authorization for activity reads (IDOR guard)
 - Deterministic, database-level ordering and pagination for the activity feed
 - Zod validation for activity query parameters (`page`, `limit`, safe cap)
-- Activity events (`GROUP_CREATED`, `MEMBER_ADDED`, `EXPENSE_ADDED`, `SETTLEMENT_ADDED`)
+- Activity events (`GROUP_CREATED`, `GROUP_UPDATED`, `MEMBER_ADDED`, `MEMBER_REMOVED`, `EXPENSE_ADDED`, `EXPENSE_UPDATED`, `EXPENSE_DELETED`, `SETTLEMENT_ADDED`)
   recorded in the same Prisma transactions as the domain operations that produce them
 - Safe actor/user projection (password hashes never exposed)
 - **Background job queue** (`src/queues/`) — Redis-backed ZSET queue with
@@ -1611,11 +1678,12 @@ Implemented so far (auth + groups + expenses + balances/settlements + activity f
 The following features are **NOT implemented** in this chunk:
 
 - Email verification / password reset
-- User management / profile update endpoints
-- Expense delete endpoint (creation, list, and detail are implemented)
+- Account deletion / deactivation (never implemented: Prisma `Restrict` foreign
+  keys and the absence of a deactivation column make deletion unsafe — deleting
+  a user would corrupt historical financial records; account lifecycle stays out
+  of scope)
 - Activity feed generation logic
 - Idempotency protection for expense creation (only settlement creation is protected in this PR)
-- Member-removed activity events (the `ActivityType` enum does not yet include a removal type)
 - Notifications / real-time activity pushes (the feed is read on demand)
 - Redis high availability: the infra assumes a single Redis endpoint; no
   Sentinel/Cluster topology or failover configuration is provided. Multi-instance
@@ -1672,6 +1740,8 @@ the shared request pipeline. The API serves them at `GET /metrics`
 | `users_registered_total` | counter | — | Successful registrations |
 | `groups_created_total` | counter | — | Successful group creations |
 | `expenses_created_total` | counter | — | Successful expense creations |
+| `expenses_updated_total` | counter | — | Successful expense updates |
+| `expenses_deleted_total` | counter | — | Successful expense deletions |
 | `settlements_created_total` | counter | — | Successful settlement creations |
 | `activity_events_created_total` | counter | `type` | Persisted activity events |
 | `background_jobs_succeeded_total` | counter | `job_type` | Jobs processed successfully |

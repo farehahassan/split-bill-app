@@ -44,6 +44,8 @@ export const METRIC = {
   usersRegisteredTotal: "users_registered_total",
   groupsCreatedTotal: "groups_created_total",
   expensesCreatedTotal: "expenses_created_total",
+  expensesUpdatedTotal: "expenses_updated_total",
+  expensesDeletedTotal: "expenses_deleted_total",
   settlementsCreatedTotal: "settlements_created_total",
   activityEventsCreatedTotal: "activity_events_created_total",
   backgroundJobsSucceededTotal: "background_jobs_succeeded_total",
@@ -310,6 +312,16 @@ const DEFAULT_METRICS: MetricDefinition[] = [
     kind: "counter",
     name: METRIC.expensesCreatedTotal,
     help: "Total number of successfully created expenses.",
+  },
+  {
+    kind: "counter",
+    name: METRIC.expensesUpdatedTotal,
+    help: "Total number of successfully updated expenses.",
+  },
+  {
+    kind: "counter",
+    name: METRIC.expensesDeletedTotal,
+    help: "Total number of successfully deleted expenses.",
   },
   {
     kind: "counter",

@@ -114,6 +114,35 @@ export class AuthService {
     return { id: user.id, name: user.name, email: user.email };
   }
 
+  async updateCurrentUser(
+    userId: string,
+    data: { name?: string; email?: string },
+  ): Promise<AuthUser> {
+    const user = await this.repository.findById(userId);
+    if (!user) {
+      throw new NotFoundError(APP_ERRORS.USER_NOT_FOUND, "User not found.");
+    }
+
+    if (data.email) {
+      const existing = await this.repository.findByEmail(data.email);
+      if (existing && existing.id !== userId) {
+        throw new ConflictError(
+          APP_ERRORS.EMAIL_IN_USE,
+          "An account with this email already exists.",
+        );
+      }
+    }
+
+    const updated = await this.repository.update(userId, {
+      name: data.name,
+      email: data.email,
+    });
+    if (!updated) {
+      throw new NotFoundError(APP_ERRORS.USER_NOT_FOUND, "User not found.");
+    }
+    return updated;
+  }
+
   verifyToken(token: string): JwtPayload {
     const env = getEnv();
     try {

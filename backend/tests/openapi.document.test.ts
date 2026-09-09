@@ -48,6 +48,7 @@ const IMPORTANT_SCHEMAS = [
   "MinorUnits",
   "User",
   "AuthSession",
+  "UpdateCurrentUserRequest",
   "Group",
   "GroupWithMemberCount",
   "GroupWithMembers",
@@ -56,6 +57,7 @@ const IMPORTANT_SCHEMAS = [
   "Expense",
   "ExpenseSummary",
   "CreateExpenseRequest",
+  "UpdateExpenseRequest",
   "Settlement",
   "CreateSettlementRequest",
   "Balance",
@@ -241,7 +243,7 @@ describe("OpenAPI document", () => {
 
 describe("Path item structure", () => {
   it("declares only the HTTP methods the backend implements", () => {
-    const allowedMethods = new Set(["get", "post", "put", "delete"]);
+    const allowedMethods = new Set(["get", "post", "put", "delete", "patch"]);
     for (const item of Object.values(document.paths)) {
       const methods = (Object.keys(item) as Array<keyof PathItemObject>).filter(
         (key) => key !== "summary" && key !== "description" && key !== "parameters",

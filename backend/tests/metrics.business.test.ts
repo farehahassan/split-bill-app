@@ -162,6 +162,144 @@ describe("expenses_created_total", () => {
   });
 });
 
+describe("expenses_updated_total", () => {
+  const repository = {
+    findExpenseById: vi.fn().mockResolvedValue({
+      id: "expense-1",
+      groupId: "group-1",
+      paidById: "user-1",
+      description: "Dinner",
+      amountMinorUnits: 1000n,
+      currencyCode: "PKR",
+      splitType: "EQUAL",
+      expenseDate: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      payer: { id: "user-1", name: "Ahmed", email: "a@example.com" },
+      splits: [
+        {
+          id: "split-1",
+          expenseId: "expense-1",
+          userId: "user-1",
+          amountMinorUnits: 1000n,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          user: { id: "user-1", name: "Ahmed", email: "a@example.com" },
+        },
+      ],
+    }),
+    findGroupMemberIds: vi.fn().mockResolvedValue(["owner", "user-1"]),
+    updateExpenseWithSplits: vi.fn().mockResolvedValue({
+      id: "expense-1",
+      groupId: "group-1",
+      paidById: "user-1",
+      description: "Lunch",
+      amountMinorUnits: 1200n,
+      currencyCode: "PKR",
+      splitType: "EQUAL",
+      expenseDate: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      payer: { id: "user-1", name: "Ahmed", email: "a@example.com" },
+      splits: [
+        {
+          id: "split-1",
+          expenseId: "expense-1",
+          userId: "user-1",
+          amountMinorUnits: 600n,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          user: { id: "user-1", name: "Ahmed", email: "a@example.com" },
+        },
+        {
+          id: "split-2",
+          expenseId: "expense-1",
+          userId: "owner",
+          amountMinorUnits: 600n,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          user: { id: "owner", name: "Owner", email: "o@example.com" },
+        },
+      ],
+    }),
+  } as unknown as ExpenseRepository;
+
+  it("increments once when an expense has been updated", async () => {
+    const service = new ExpenseService(repository);
+    await service.updateExpense("owner", "expense-1", { description: "Lunch", amountMinorUnits: 1200 });
+
+    expect(count(METRIC.expensesUpdatedTotal)).toBe(1);
+  });
+
+  it("does not count when validation rejects the update", async () => {
+    const findingRepository = {
+      findExpenseById: vi.fn().mockResolvedValue(null),
+    } as unknown as ExpenseRepository;
+    const service = new ExpenseService(findingRepository);
+
+    await expect(
+      service.updateExpense("owner", "missing", { description: "Lunch" }),
+    ).rejects.toMatchObject({ code: APP_ERRORS.EXPENSE_NOT_FOUND });
+
+    expect(count(METRIC.expensesUpdatedTotal)).toBe(0);
+  });
+
+  it("does not count when the new payer is not a group member", async () => {
+    const invalidRepository = {
+      ...repository,
+      findGroupMemberIds: vi.fn().mockResolvedValue(["user-1"]),
+    } as unknown as ExpenseRepository;
+    const service = new ExpenseService(invalidRepository);
+
+    await expect(
+      service.updateExpense("user-1", "expense-1", { payerId: "outsider" }),
+    ).rejects.toMatchObject({ code: APP_ERRORS.PAYER_NOT_GROUP_MEMBER });
+
+    expect(count(METRIC.expensesUpdatedTotal)).toBe(0);
+  });
+});
+
+describe("expenses_deleted_total", () => {
+  const repository = {
+    findExpenseById: vi.fn().mockResolvedValue({
+      id: "expense-1",
+      groupId: "group-1",
+      paidById: "user-1",
+      description: "Dinner",
+      amountMinorUnits: 1000n,
+      currencyCode: "PKR",
+      splitType: "EQUAL",
+      expenseDate: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      payer: { id: "user-1", name: "Ahmed", email: "a@example.com" },
+      splits: [],
+    }),
+    findGroupMemberIds: vi.fn().mockResolvedValue(["owner", "user-1"]),
+    deleteExpenseWithEvent: vi.fn().mockResolvedValue(undefined),
+  } as unknown as ExpenseRepository;
+
+  it("increments once when an expense has been deleted", async () => {
+    const service = new ExpenseService(repository);
+    await service.deleteExpense("owner", "expense-1");
+
+    expect(count(METRIC.expensesDeletedTotal)).toBe(1);
+  });
+
+  it("does not count when the expense does not exist", async () => {
+    const missingRepository = {
+      findExpenseById: vi.fn().mockResolvedValue(null),
+    } as unknown as ExpenseRepository;
+    const service = new ExpenseService(missingRepository);
+
+    await expect(service.deleteExpense("owner", "missing")).rejects.toMatchObject({
+      code: APP_ERRORS.EXPENSE_NOT_FOUND,
+    });
+
+    expect(count(METRIC.expensesDeletedTotal)).toBe(0);
+  });
+});
+
 describe("settlements_created_total", () => {
   const input = {
     groupId: "group-1",

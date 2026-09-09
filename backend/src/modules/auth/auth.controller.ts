@@ -38,3 +38,12 @@ export async function getMe(req: Request, res: Response): Promise<void> {
   const user = await authService.getMe(req.userId!);
   res.status(HTTP_STATUSES.OK).json({ success: true, data: { user } });
 }
+
+export async function updateCurrentUser(req: Request, res: Response): Promise<void> {
+  const body = req.body as { name?: string; email?: string };
+  const user = await authService.updateCurrentUser(req.userId!, {
+    name: body.name,
+    email: body.email,
+  });
+  res.status(HTTP_STATUSES.OK).json({ success: true, data: { user } });
+}

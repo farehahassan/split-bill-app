@@ -199,7 +199,13 @@ describe("Group caching API", () => {
       mockPrisma.group.findUnique
         .mockResolvedValueOnce(group)
         .mockResolvedValueOnce({ id: group.id });
-      mockPrisma.group.update.mockResolvedValue({ ...group, name: "Updated Name" });
+      mockPrisma.$transaction.mockImplementation(async (fn) => {
+        const tx = {
+          group: { update: vi.fn().mockResolvedValue({ ...group, name: "Updated Name" }) },
+          activityEvent: { create: vi.fn().mockResolvedValue({ id: "event-1" }) },
+        };
+        return fn(tx);
+      });
 
       const res = await request(app)
         .put("/api/v1/groups/group-1")
@@ -255,7 +261,18 @@ describe("Group caching API", () => {
         .mockResolvedValueOnce(group)
         .mockResolvedValueOnce({ id: group.id, createdById: ownerId });
       mockPrisma.groupMember.findUnique.mockResolvedValue(groupMemberRow);
-      mockPrisma.groupMember.delete.mockResolvedValue(groupMemberRow);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: memberId,
+        name: "Sana",
+        email: "sana@example.com",
+      });
+      mockPrisma.$transaction.mockImplementation(async (fn) => {
+        const tx = {
+          groupMember: { delete: vi.fn().mockResolvedValue(groupMemberRow) },
+          activityEvent: { create: vi.fn().mockResolvedValue({ id: "event-1" }) },
+        };
+        return fn(tx);
+      });
 
       const res = await request(app)
         .delete(`/api/v1/groups/group-1/members/${memberId}`)
