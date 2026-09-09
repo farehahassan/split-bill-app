@@ -67,3 +67,15 @@ export class NotFoundError extends AppError {
     super(HTTP_STATUSES.NOT_FOUND, code, message);
   }
 }
+
+/**
+ * A transactional email could not be dispatched by the configured provider
+ * (HTTP 503). The email service throws this so callers can decide whether the
+ * request should fail or degrade gracefully (e.g. registration, where the
+ * account is already persisted and the user can resend the email later).
+ */
+export class EmailDeliveryError extends AppError {
+  constructor(code: string, message: string) {
+    super(HTTP_STATUSES.SERVICE_UNAVAILABLE, code, message);
+  }
+}

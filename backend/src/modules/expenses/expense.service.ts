@@ -55,6 +55,15 @@ export type CreateExpenseInput = {
   expenseDate?: string;
 };
 
+export type UpdateExpenseInput = {
+  description?: string;
+  amountMinorUnits?: number;
+  payerId?: string;
+  splitType?: "EQUAL" | "EXACT";
+  participants?: Array<{ userId: string; amountMinorUnits?: number }>;
+  expenseDate?: string;
+};
+
 export class ExpenseService {
   constructor(private repository: ExpenseRepository) {}
 
@@ -155,6 +164,154 @@ export class ExpenseService {
     await this.assertMemberOfGroup(requesterId, expense.groupId);
 
     return this.toDetailDto(expense);
+  }
+
+  /**
+   * Merges the provided fields over the current expense, recomputes the splits
+   * for fields that affect them, and persists the expense, its splits, and the
+   * expense-updated activity event in one transaction. The currency code is
+   * never editable (all expenses are in PKR).
+   */
+  async updateExpense(
+    requesterId: string,
+    expenseId: string,
+    input: UpdateExpenseInput,
+  ): Promise<ExpenseDetailDto> {
+    const expense = await this.repository.findExpenseById(expenseId);
+    if (!expense) {
+      throw new NotFoundError(APP_ERRORS.EXPENSE_NOT_FOUND, "Expense not found.");
+    }
+
+    const memberIds = await this.repository.findGroupMemberIds(expense.groupId);
+    if (!memberIds.includes(requesterId)) {
+      throw new ForbiddenError(APP_ERRORS.NOT_GROUP_MEMBER, "You are not a member of this group.");
+    }
+
+    const nextDescription = input.description ?? expense.description;
+    const nextTotal = input.amountMinorUnits !== undefined
+      ? BigInt(input.amountMinorUnits)
+      : expense.amountMinorUnits;
+    const nextPayerId = input.payerId ?? expense.paidById;
+    const nextSplitType = input.splitType ?? expense.splitType;
+    const nextExpenseDate = input.expenseDate ? new Date(input.expenseDate) : expense.expenseDate;
+
+    if (!memberIds.includes(nextPayerId)) {
+      throw new ForbiddenError(
+        APP_ERRORS.PAYER_NOT_GROUP_MEMBER,
+        "The payer must be a member of the group.",
+      );
+    }
+
+    let splits: Array<{ userId: string; amountMinorUnits: bigint }>;
+    if (input.participants !== undefined) {
+      splits = this.reconcileSplits(nextSplitType, nextTotal, input.participants, memberIds);
+    } else if (nextSplitType === "EXACT") {
+      if (sumSplitAmounts(expense.splits) !== nextTotal) {
+        throw new BadRequestError(
+          APP_ERRORS.SPLIT_TOTAL_MISMATCH,
+          "EXACT split amounts must sum to the expense total.",
+        );
+      }
+      splits = expense.splits.map((split) => ({
+        userId: split.userId,
+        amountMinorUnits: split.amountMinorUnits,
+      }));
+    } else {
+      splits = calculateEqualSplits(
+        nextTotal,
+        expense.splits.map((split) => split.userId),
+      );
+    }
+
+    const updated = await this.repository.updateExpenseWithSplits(
+      expenseId,
+      {
+        paidById: nextPayerId,
+        description: nextDescription,
+        amountMinorUnits: nextTotal,
+        splitType: nextSplitType,
+        expenseDate: nextExpenseDate,
+        splits,
+      },
+      {
+        userId: requesterId,
+        type: "EXPENSE_UPDATED",
+        message: `updated the expense "${nextDescription}"`,
+      },
+    );
+
+    metrics.increment(METRIC.expensesUpdatedTotal);
+
+    return this.toDetailDto(updated);
+  }
+
+  async deleteExpense(requesterId: string, expenseId: string): Promise<void> {
+    const expense = await this.repository.findExpenseById(expenseId);
+    if (!expense) {
+      throw new NotFoundError(APP_ERRORS.EXPENSE_NOT_FOUND, "Expense not found.");
+    }
+
+    await this.assertMemberOfGroup(requesterId, expense.groupId);
+
+    await this.repository.deleteExpenseWithEvent(expenseId, {
+      userId: requesterId,
+      type: "EXPENSE_DELETED",
+      message: `deleted the expense "${expense.description}"`,
+    });
+
+    metrics.increment(METRIC.expensesDeletedTotal);
+  }
+
+  private reconcileSplits(
+    splitType: "EQUAL" | "EXACT",
+    totalMinorUnits: bigint,
+    participants: Array<{ userId: string; amountMinorUnits?: number }>,
+    memberIds: string[],
+  ): Array<{ userId: string; amountMinorUnits: bigint }> {
+    const participantIds = participants.map((participant) => participant.userId);
+    if (new Set(participantIds).size !== participantIds.length) {
+      throw new BadRequestError(
+        APP_ERRORS.DUPLICATE_SPLIT_USER,
+        "A participant cannot appear more than once in the splits.",
+      );
+    }
+
+    for (const participantId of participantIds) {
+      if (!memberIds.includes(participantId)) {
+        throw new ForbiddenError(
+          APP_ERRORS.SPLIT_USER_NOT_GROUP_MEMBER,
+          "Every split participant must be a member of the group.",
+        );
+      }
+    }
+
+    if (splitType === "EQUAL") {
+      return calculateEqualSplits(totalMinorUnits, participantIds);
+    }
+
+    const missingAmount = participants.some(
+      (participant) => participant.amountMinorUnits === undefined,
+    );
+    if (missingAmount) {
+      throw new BadRequestError(
+        APP_ERRORS.SPLIT_TOTAL_MISMATCH,
+        "Every EXACT participant must provide an amount.",
+      );
+    }
+
+    const splits = participants.map((participant) => ({
+      userId: participant.userId,
+      amountMinorUnits: BigInt(participant.amountMinorUnits as number),
+    }));
+
+    if (sumSplitAmounts(splits) !== totalMinorUnits) {
+      throw new BadRequestError(
+        APP_ERRORS.SPLIT_TOTAL_MISMATCH,
+        "EXACT split amounts must sum to the expense total.",
+      );
+    }
+
+    return splits;
   }
 
   async getGroupExpenses(requesterId: string, groupId: string): Promise<ExpenseSummaryDto[]> {

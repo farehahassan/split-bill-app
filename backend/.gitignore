@@ -27,3 +27,7 @@ Thumbs.db
 
 # Prisma
 backend/prisma/*.db
+
+# Local (non-Docker) test infrastructure: PostgreSQL data dir + portable Redis
+# created by `npm run test:infra:up` when Docker is not available.
+.test-infra/

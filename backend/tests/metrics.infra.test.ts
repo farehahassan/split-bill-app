@@ -166,6 +166,8 @@ describe("Observability catalog", () => {
       "users_registered_total",
       "groups_created_total",
       "expenses_created_total",
+      "expenses_updated_total",
+      "expenses_deleted_total",
       "settlements_created_total",
       "activity_events_created_total",
       "background_jobs_succeeded_total",
@@ -176,6 +178,8 @@ describe("Observability catalog", () => {
       "cache_failures_total",
       "queue_failures_total",
       "database_connection_errors_total",
+      "emails_sent_total",
+      "email_send_failures_total",
     ]) {
       const kind = name === "http_request_duration_seconds" ? "histogram" : "counter";
       expect(rendered).toContain(`# TYPE ${name} ${kind}`);

@@ -30,9 +30,18 @@ enum SplitType {
 
 enum ActivityType {
   EXPENSE_ADDED
+  EXPENSE_UPDATED
+  EXPENSE_DELETED
   SETTLEMENT_ADDED
   GROUP_CREATED
+  GROUP_UPDATED
   MEMBER_ADDED
+  MEMBER_REMOVED
+}
+
+enum AuthTokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
 }
 
 model User {
@@ -40,6 +49,7 @@ model User {
   name         String
   email        String  @unique
   passwordHash String?
+  emailVerifiedAt DateTime?
 
   createdGroups   Group[]         @relation("GroupOwner")
   memberships     GroupMember[]
@@ -50,6 +60,7 @@ model User {
   activities        ActivityEvent[]
   refreshTokens     RefreshToken[]
   idempotencyKeys   IdempotencyRecord[]
+  authTokens        AuthToken[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -194,6 +205,26 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// Reusable single-use authentication tokens (email verification, password
+// reset). The raw token is only ever returned to the client at issuance time;
+// PostgreSQL stores only its SHA-256 digest in `tokenHash`. `purpose` keeps
+// token types isolated from each other and `consumedAt` enforces single-use.
+model AuthToken {
+  id        String           @id @default(uuid())
+  userId    String
+  purpose   AuthTokenPurpose
+  tokenHash String           @unique
+  expiresAt DateTime
+  consumedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, purpose])
+  @@index([expiresAt])
 }
 
 enum IdempotencyStatus {

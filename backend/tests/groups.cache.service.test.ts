@@ -195,6 +195,11 @@ describe("GroupService caching", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+      repository.findUserById.mockResolvedValue({
+        id: "u2",
+        name: "Sana",
+        email: "sana@example.com",
+      });
       repository.removeGroupMember.mockResolvedValue();
 
       const service = new GroupService(repository, cache);

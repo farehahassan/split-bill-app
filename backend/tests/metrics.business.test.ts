@@ -8,6 +8,8 @@ import type { IdempotencyContext } from "../src/modules/idempotency/reconcile.js
 
 import { AuthService } from "../src/modules/auth/auth.service.js";
 import type { AuthRepository } from "../src/modules/auth/auth.repository.js";
+import { EmailService } from "../src/modules/email/email.service.js";
+import type { EmailProvider } from "../src/modules/email/email.types.js";
 import { GroupService } from "../src/modules/groups/group.service.js";
 import type { GroupRepository } from "../src/modules/groups/group.repository.js";
 import { ExpenseService } from "../src/modules/expenses/expense.service.js";
@@ -34,15 +36,11 @@ describe("users_registered_total", () => {
   it("increments once when a user has registered successfully", async () => {
     const repository = {
       findByEmail: vi.fn().mockResolvedValue(null),
-      create: vi.fn().mockResolvedValue({
+      createUserWithAuthData: vi.fn().mockResolvedValue({
         id: "user-1",
         name: "Ahmed",
         email: "ahmed@example.com",
-        passwordHash: "hash",
-        createdAt: new Date(),
-        updatedAt: new Date(),
       }),
-      createRefreshToken: vi.fn().mockResolvedValue({ id: "session-1" }),
     } as unknown as AuthRepository;
 
     const service = new AuthService(repository);
@@ -62,6 +60,41 @@ describe("users_registered_total", () => {
     ).rejects.toMatchObject({ code: APP_ERRORS.EMAIL_IN_USE });
 
     expect(count(METRIC.usersRegisteredTotal)).toBe(0);
+  });
+});
+
+describe("email metrics (emails_sent_total / email_send_failures_total)", () => {
+  it("increments emails_sent_total with the operation label on success", async () => {
+    const provider = { send: vi.fn().mockResolvedValue(undefined) } as unknown as EmailProvider;
+    const service = new EmailService(provider);
+
+    await service.sendVerificationEmail("ahmed@example.com", "https://app.example/verify-email", "Ahmed");
+
+    expect(
+      metrics.counterValue(METRIC.emailsSentTotal, {
+        [METRIC_LABEL.operation]: "email_verification",
+      }),
+    ).toBe(1);
+  });
+
+  it("increments email_send_failures_total and throws EmailDeliveryError on provider failure", async () => {
+    const provider = { send: vi.fn().mockRejectedValue(new Error("smtp down")) } as unknown as EmailProvider;
+    const service = new EmailService(provider);
+
+    await expect(
+      service.sendPasswordResetEmail("ahmed@example.com", "https://app.example/reset-password", "Ahmed"),
+    ).rejects.toMatchObject({ code: APP_ERRORS.EMAIL_DELIVERY_FAILED });
+
+    expect(
+      metrics.counterValue(METRIC.emailSendFailuresTotal, {
+        [METRIC_LABEL.operation]: "password_reset",
+      }),
+    ).toBe(1);
+    expect(
+      metrics.counterValue(METRIC.emailsSentTotal, {
+        [METRIC_LABEL.operation]: "password_reset",
+      }),
+    ).toBe(0);
   });
 });
 
@@ -159,6 +192,144 @@ describe("expenses_created_total", () => {
     ).rejects.toMatchObject({ code: APP_ERRORS.GROUP_NOT_FOUND });
 
     expect(count(METRIC.expensesCreatedTotal)).toBe(0);
+  });
+});
+
+describe("expenses_updated_total", () => {
+  const repository = {
+    findExpenseById: vi.fn().mockResolvedValue({
+      id: "expense-1",
+      groupId: "group-1",
+      paidById: "user-1",
+      description: "Dinner",
+      amountMinorUnits: 1000n,
+      currencyCode: "PKR",
+      splitType: "EQUAL",
+      expenseDate: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      payer: { id: "user-1", name: "Ahmed", email: "a@example.com" },
+      splits: [
+        {
+          id: "split-1",
+          expenseId: "expense-1",
+          userId: "user-1",
+          amountMinorUnits: 1000n,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          user: { id: "user-1", name: "Ahmed", email: "a@example.com" },
+        },
+      ],
+    }),
+    findGroupMemberIds: vi.fn().mockResolvedValue(["owner", "user-1"]),
+    updateExpenseWithSplits: vi.fn().mockResolvedValue({
+      id: "expense-1",
+      groupId: "group-1",
+      paidById: "user-1",
+      description: "Lunch",
+      amountMinorUnits: 1200n,
+      currencyCode: "PKR",
+      splitType: "EQUAL",
+      expenseDate: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      payer: { id: "user-1", name: "Ahmed", email: "a@example.com" },
+      splits: [
+        {
+          id: "split-1",
+          expenseId: "expense-1",
+          userId: "user-1",
+          amountMinorUnits: 600n,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          user: { id: "user-1", name: "Ahmed", email: "a@example.com" },
+        },
+        {
+          id: "split-2",
+          expenseId: "expense-1",
+          userId: "owner",
+          amountMinorUnits: 600n,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          user: { id: "owner", name: "Owner", email: "o@example.com" },
+        },
+      ],
+    }),
+  } as unknown as ExpenseRepository;
+
+  it("increments once when an expense has been updated", async () => {
+    const service = new ExpenseService(repository);
+    await service.updateExpense("owner", "expense-1", { description: "Lunch", amountMinorUnits: 1200 });
+
+    expect(count(METRIC.expensesUpdatedTotal)).toBe(1);
+  });
+
+  it("does not count when validation rejects the update", async () => {
+    const findingRepository = {
+      findExpenseById: vi.fn().mockResolvedValue(null),
+    } as unknown as ExpenseRepository;
+    const service = new ExpenseService(findingRepository);
+
+    await expect(
+      service.updateExpense("owner", "missing", { description: "Lunch" }),
+    ).rejects.toMatchObject({ code: APP_ERRORS.EXPENSE_NOT_FOUND });
+
+    expect(count(METRIC.expensesUpdatedTotal)).toBe(0);
+  });
+
+  it("does not count when the new payer is not a group member", async () => {
+    const invalidRepository = {
+      ...repository,
+      findGroupMemberIds: vi.fn().mockResolvedValue(["user-1"]),
+    } as unknown as ExpenseRepository;
+    const service = new ExpenseService(invalidRepository);
+
+    await expect(
+      service.updateExpense("user-1", "expense-1", { payerId: "outsider" }),
+    ).rejects.toMatchObject({ code: APP_ERRORS.PAYER_NOT_GROUP_MEMBER });
+
+    expect(count(METRIC.expensesUpdatedTotal)).toBe(0);
+  });
+});
+
+describe("expenses_deleted_total", () => {
+  const repository = {
+    findExpenseById: vi.fn().mockResolvedValue({
+      id: "expense-1",
+      groupId: "group-1",
+      paidById: "user-1",
+      description: "Dinner",
+      amountMinorUnits: 1000n,
+      currencyCode: "PKR",
+      splitType: "EQUAL",
+      expenseDate: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      payer: { id: "user-1", name: "Ahmed", email: "a@example.com" },
+      splits: [],
+    }),
+    findGroupMemberIds: vi.fn().mockResolvedValue(["owner", "user-1"]),
+    deleteExpenseWithEvent: vi.fn().mockResolvedValue(undefined),
+  } as unknown as ExpenseRepository;
+
+  it("increments once when an expense has been deleted", async () => {
+    const service = new ExpenseService(repository);
+    await service.deleteExpense("owner", "expense-1");
+
+    expect(count(METRIC.expensesDeletedTotal)).toBe(1);
+  });
+
+  it("does not count when the expense does not exist", async () => {
+    const missingRepository = {
+      findExpenseById: vi.fn().mockResolvedValue(null),
+    } as unknown as ExpenseRepository;
+    const service = new ExpenseService(missingRepository);
+
+    await expect(service.deleteExpense("owner", "missing")).rejects.toMatchObject({
+      code: APP_ERRORS.EXPENSE_NOT_FOUND,
+    });
+
+    expect(count(METRIC.expensesDeletedTotal)).toBe(0);
   });
 });
 

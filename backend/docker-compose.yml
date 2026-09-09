@@ -1,0 +1,45 @@
+# Local infrastructure for the integration test suite (`npm run test:integration`).
+#
+# The services here are STRICTLY for tests and are intentionally isolated from
+# any development/production instances:
+#   - PostgreSQL listens on host port 5433 (dev databases usually use 5432).
+#   - Redis listens on host port 6380 (dev Redis usually uses 6379).
+#
+# The credentials below are throwaway local-test defaults (never real secrets):
+# override them with the POSTGRES_TEST_USER / POSTGRES_TEST_PASSWORD /
+# POSTGRES_TEST_DB / REDIS_PORT env vars if you want different values. The same
+# values are the defaults baked into tests/integration/config.ts.
+#
+# Start with:   docker compose -f docker-compose.yml up -d --wait
+# Stop with:    docker compose -f docker-compose.yml down
+# Reset data:   docker compose -f docker-compose.yml down -v   (then up again)
+
+services:
+  postgres-integration:
+    image: postgres:16-alpine
+    container_name: hisab-backend-postgres-integration
+    environment:
+      POSTGRES_DB: ${POSTGRES_TEST_DB:-splitease_integration}
+      POSTGRES_USER: ${POSTGRES_TEST_USER:-splitease}
+      POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD:-splitease_test}
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_TEST_USER:-splitease} -d ${POSTGRES_TEST_DB:-splitease_integration}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis-integration:
+    # No persistence and no save points: cache/locking/queue state in the test
+    # Redis is expected to be ephemeral and is flushed between tests.
+    image: redis:7-alpine
+    container_name: hisab-backend-redis-integration
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 2s
+      retries: 30

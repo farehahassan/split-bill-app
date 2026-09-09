@@ -160,13 +160,30 @@ backend/
 │   └── edge.test.ts              # Edge layer tests (trust proxy, URL/body/request-ID guard, 413)
 │   └── helpers/
 │       └── fakeRedis.ts          # In-memory + failing Redis fakes for tests
+│   └── integration/              # Integration suite (real PostgreSQL + Redis; see below)
+│       ├── config.ts             # INTEGRATION_DATABASE_URL / INTEGRATION_REDIS_URL resolution
+│       ├── setup.ts              # Env bootstrap, infrastructure verify, migration apply, per-test cleanup
+│       ├── auth.persistence.test.ts
+│       ├── transactions.test.ts
+│       ├── groups.persistence.test.ts
+│       ├── expenses.persistence.test.ts
+│       ├── settlements.persistence.test.ts
+│       ├── cache.redis.test.ts
+│       ├── redis.infra.test.ts
+│       ├── jobs.redis.test.ts
+│       ├── http.api.test.ts
+│       └── helpers/              # database.ts, redis.ts, http.ts, fixtures.ts, waitFor.ts
+├── scripts/
+│   └── migrate-integration-db.ts # Migrate/reset the integration database (never the dev DB)
+├── docker-compose.yml        # `postgres-integration` (localhost:5433) + `redis-integration` (localhost:6380)
 ├── .env.example
 ├── .gitignore
 ├── eslint.config.js
 ├── prettier.config.js
 ├── package.json
 ├── tsconfig.json
-├── vitest.config.ts
+├── vitest.config.ts          # Unit suite (`npm test`)
+├── vitest.integration.config.ts # Integration suite (`npm run test:integration`)
 └── README.md
 ```
 
@@ -203,6 +220,8 @@ Copy `.env.example` to `.env` and configure. **Never commit your `.env` file or 
 | `AUTH_RATE_LIMIT_MAX` | No | `20` | Max requests per client IP per window for `/api/v1/auth/*` |
 | `REDIS_URL` | No | `redis://localhost:6379` | Redis connection string for distributed rate limiting/locking. Never commit one containing a password. |
 | `TRUST_PROXY` | No | `false` | Reverse-proxy trust level for `req.ip`. Use `true`/`1` (first hop), a hop count, or an Express value (`loopback`, subnet, ...). Leave `false` when no proxy is deployed. |
+| `INTEGRATION_DATABASE_URL` | No | `postgresql://splitease:splitease_test@localhost:5433/splitease_integration` | PostgreSQL connection string used by the integration test suite (see [Integration Testing](#integration-testing-real-postgresql--redis)). |
+| `INTEGRATION_REDIS_URL` | No | `redis://localhost:6380/15` | Redis connection string used by the integration test suite (db index 15). |
 | `DISTRIBUTED_LOCK_TTL_MS` | No | `10000` | TTL of distributed locks in milliseconds. Must exceed the longest protected operation. |
 | `JOB_QUEUE_MAX_ATTEMPTS` | No | `5` | Retry budget for background jobs before they are discarded. |
 | `JOB_QUEUE_BASE_BACKOFF_MS` | No | `2000` | First-retry delay for a failed background job (exponential). |
@@ -257,7 +276,128 @@ npm run db:migrate       # Apply pending migrations (production/deploy)
 npm run db:migrate:dev   # Create/apply migrations (development)
 npm run db:studio        # Open Prisma Studio (GUI for data inspection)
 npm run db:validate      # Validate the Prisma schema
+npm run integration:up   # Start the integration PostgreSQL + Redis containers (docker compose)
+npm run integration:down # Stop and remove the integration containers
+npm run test:infra:up    # Docker-free fallback: start an isolated local PostgreSQL + portable Redis
+npm run test:infra:down  # Stop the local fallback services started by test:infra:up
+npm run test:infra:status # Report whether the integration services are up
+npm run db:migrate:test  # Apply pending migrations to the integration database (INTEGRATION_DATABASE_URL)
+npm run db:reset:test    # Reset (drop + migrate) the integration database
+npm run test:integration # Run the integration suite (real PostgreSQL + Redis; requires integration:up or test:infra:up first)
+npm run test:integration:watch # Run the integration suite in watch mode
+npm run test:all         # Run both the unit and the integration suites
 ```
+
+The `npm test` (unit) suite runs without any external services; the
+`test:integration` suite runs against real PostgreSQL + Redis started with
+either `npm run integration:up` (Docker) or `npm run test:infra:up` (local,
+Docker-free fallback) first — see
+[Integration Testing](#integration-testing-real-postgresql--redis).
+
+## Integration Testing (real PostgreSQL + Redis)
+
+Alongside the mocked unit suite (`npm test`), the backend ships an **integration
+suite** that runs against live PostgreSQL and Redis via Docker Compose. It is
+deliberately isolated from your development database.
+
+### Principles
+
+- **Real infrastructure, no fakes.** Redis primitives (rate limiting, the
+  distributed lock, the cache, the job queue), transactional atomicity, unique
+  constraints, and end-to-end HTTP flows are exercised against the actual
+  containers — nothing is mocked.
+- **No arbitrary sleeps.** Concurrency and TTL behavior are asserted with a
+  bounded polling helper (`tests/integration/helpers/waitFor.ts`) or by reading
+  raw Redis scores/`PTTL`s back, never with fixed `setTimeout` waits.
+- **Schema is always current.** The setup checks the integration database's
+  migration state and applies pending migrations before the first test runs, so
+  a fresh checkout just works; a dev-created schema can never be wedged.
+- **Deterministic isolation.** Every test starts against a truncated database
+  (all tables, `TRUNCATE ... CASCADE`) and an empty Redis keyspace (`FLUSHDB`).
+- **Never touches dev data.** The suite uses dedicated PostgreSQL (host port
+  `5433`) and Redis (port `6380`, db index `15`) services and its own connection
+  strings. Migration/reset helpers all target `INTEGRATION_DATABASE_URL`.
+
+### Running the suite
+
+```bash
+cd backend
+
+# Option A — Docker (works when Docker can run):
+npm run integration:up     # start postgres-integration + redis-integration (docker compose)
+npm run test:integration   # run the full integration suite
+npm run integration:down   # stop the containers when you are done
+
+# Option B — Docker-free fallback (no Docker/admin needed), e.g. on Windows:
+npm run test:infra:up      # init/start an ISOLATED local PostgreSQL (host port 5433)
+                           # and download+start a portable Redis (port 6380, db 15)
+npm run test:integration   # run the full integration suite
+npm run test:infra:down    # stop those services when you are done
+```
+
+Details:
+
+- **Docker**: `docker compose -f docker-compose.yml up -d --wait` starts
+  **PostgreSQL on localhost:5433** (`splitease_integration` database, user
+  `splitease` / password `splitease_test`, overridable via environment) and
+  **Redis on localhost:6380** (no persistence, so test data never survives a
+  restart). Both get healthchecks; `--wait` blocks until they are ready.
+- **Local fallback** (`npm run test:infra:up`, implemented by
+  `scripts/test-infra.ts`): locates PostgreSQL binaries (system install,
+  `POSTGRES_BIN_DIR`, or PATH), `initdb`s a dedicated data directory under
+  `backend/.test-infra/pgdata` on first run, and starts the server on
+  localhost:5433 bound to 127.0.0.1. On Windows it also lowers
+  `shared_buffers`/`max_connections` because the default 128 MB segment
+  regularly fails with the ASLR "error code 487" shared-memory reservation bug.
+  Redis is either discovered on PATH/`REDIS_SERVER_BIN` or auto-downloaded as
+  a sha256-pinned portable Windows build into `backend/.test-infra/redis`.
+  Everything is git-ignored; an already-running matching service is reused
+  (never a dev database).
+- `npm run test:integration` runs `vitest run -c vitest.integration.config.ts`.
+  The setup file (`tests/integration/setup.ts`) connects both services, applies
+  pending migrations through `scripts/migrate-integration-db.ts` (schema is
+  verified first with a single Prisma query), then truncates/flushes per test.
+- Utilities:
+  - `npm run db:migrate:test` — apply pending migrations to the integration DB.
+  - `npm run db:reset:test` — drop and re-create the integration DB schema.
+  - `npm run integration:down` — stop/remove the compose services.
+  - `npm run test:infra:status` — show whether the local services are up.
+  - `npm run test:all` — run the unit suite first, then the integration suite.
+
+### What it covers
+
+- **Persistence & constraints** (`transactions.test.ts`): atomic create/rollback,
+  unhandled `P2002`/`P2003` rejection, the owner-delete FK restriction, and
+  unique constraints (duplicate email, duplicate membership).
+- **Domain persistence against the real DB** (`auth.persistence.test.ts`,
+  `groups.persistence.test.ts`, `expenses.persistence.test.ts`,
+  `settlements.persistence.test.ts`): hashed credentials and refresh-token
+  rotation, membership/ownership rules, EQUAL/EXACT split correctness, BIGINT
+  minor-unit round-trips, and settlement idempotency (sequential replay, request
+  hash changes, cross-user key reuse, concurrent same-key creation, expired
+  record reuse) with balance reconciliation.
+- **Redis infra** (`redis.infra.test.ts`): the `RedisRateLimitStore` Lua counter
+  with self-expiring windows, `DistributedLock` NX acquire / token-safe release /
+  TTL backstop, `RedisCacheStore` TTL round-trip, and `JobQueue` claim/complete/
+  discard, future scheduling, backoff re-scoring, and malformed-payload cleanup.
+- **Caching** (`cache.redis.test.ts`): populate-on-miss, hit serving, rename
+  invalidation, corrupt-entry recovery, and self-healing on ghost entries.
+- **Background jobs** (`jobs.redis.test.ts`): `GroupSummary` recomputation from
+  authoritative tables, idempotent re-delivery, permanent-failure discard for
+  deleted groups, invalid-payload discard, and backoff scheduling.
+- **HTTP end-to-end** (`http.api.test.ts`): `/health`, `/health/ready`, the full
+  auth flow (register → me → refresh rotation → replay rejection → verify-email),
+  group/member/expense lifecycles, and idempotent settlement creation with the
+  `Idempotency-Key` header and balance reads.
+
+### Configuration
+
+Override the connection strings without touching compose settings:
+
+| Variable | Default |
+|---|---|
+| `INTEGRATION_DATABASE_URL` | `postgresql://splitease:splitease_test@localhost:5433/splitease_integration` |
+| `INTEGRATION_REDIS_URL` | `redis://localhost:6380/15` |
 
 ## Health Endpoints
 
@@ -656,8 +796,7 @@ accordingly; nothing about the edge layer conflicts with that.
 
 All feature endpoints are mounted under `/api/v1`:
 
-- `/api/v1/auth` — Authentication (register, login, refresh, logout, current user)
-- `/api/v1/users` — User management (not yet implemented)
+- `/api/v1/auth` — Authentication (register, login, refresh, logout, current user, email verification, password recovery)
 - `/api/v1/groups` — Group management & membership
 - `/api/v1/expenses` — Expense tracking & split calculation
 - `/api/v1/settlements` — Settlement recording & balance calculation
@@ -781,6 +920,99 @@ Authorization: Bearer <jwt>
 - `401` — missing, malformed, invalid, or expired token
 - `404` — the authenticated user no longer exists
 
+### PATCH /api/v1/auth/me
+
+Updates the authenticated user's public profile. Requires a `Bearer` token.
+At least one of `name` or `email` is required; both may be supplied. The email
+is validated and must not be in use by another account. Privileged fields
+(e.g. `password` or `role`) are rejected outright. The response is the updated
+profile and never includes the password hash.
+
+Request body:
+
+```json
+{
+  "name": "Ahmed Raza",
+  "email": "ahmed@example.com"
+}
+```
+
+- `200` — success; returns `{ success, data: { user } }`
+- `400` — validation failed (including an empty body)
+- `401` — missing, malformed, invalid, or expired token
+- `404` — the authenticated user no longer exists
+- `409` — the email is already in use by another account
+
+### Email verification and password recovery
+
+All four endpoints are public and accept JSON bodies. Email delivery is
+**best-effort**: a temporary SMTP failure does not fail the request (an
+`EmailDeliveryError` is logged and the account/request still succeeds), and the
+sender can simply request the email again. When `EMAIL_ENABLED=false` (the
+default) no SMTP connection is attempted and the email is written to the log
+transport instead.
+
+#### POST /api/v1/auth/verify-email
+
+Confirms a user's email address with the single-use token from the verification
+email. A token can be used exactly once and expires after
+`EMAIL_VERIFICATION_TOKEN_TTL_MINUTES` (default 24 hours).
+
+```json
+{ "token": "<verification-token>" }
+```
+
+- `200` — email verified; returns `{ success, data: { message } }`
+- `400` — missing or malformed token
+- `401` — invalid, expired, or already-used token
+
+#### POST /api/v1/auth/resend-verification
+
+Sends a fresh verification email for the given address. Any previous
+verification link for that account is immediately invalidated. The endpoint
+returns the **same success message** whether the address is unknown, already
+verified, or belongs to an unverified account, so it never reveals whether an
+email exists.
+
+```json
+{ "email": "ahmed@example.com" }
+```
+
+- `200` — accepted (no account enumeration)
+- `400` — invalid email
+
+#### POST /api/v1/auth/forgot-password
+
+Sends a single-use password-reset email if the address belongs to an account,
+and invalidates any previous reset link for that account. Like
+`resend-verification`, it always returns the same generic success message.
+
+```json
+{ "email": "ahmed@example.com" }
+```
+
+- `200` — accepted (no account enumeration)
+- `400` — invalid email
+
+#### POST /api/v1/auth/reset-password
+
+Sets a new password using the single-use token from the reset email. The token
+expires after `PASSWORD_RESET_TOKEN_TTL_MINUTES` (default 60 minutes) and can be
+used only once. A successful reset **revokes every existing session** (all
+refresh tokens) for the user.
+
+```json
+{ "token": "<reset-token>", "newPassword": "password123" }
+```
+
+- `200` — password changed; returns `{ success, data: { message } }`
+- `400` — missing or malformed token, or invalid password
+- `401` — invalid, expired, or already-used token
+
+> The four endpoints share a dedicated, tighter rate limit
+> (`AUTH_EMAIL_RATE_LIMIT_MAX`, default 5 requests per window per IP) since they
+> accept unauthenticated email or token input.
+
 ### Authentication Internals
 
 - Access tokens are **JWT** signed with the configured `JWT_SECRET` and expire
@@ -795,6 +1027,29 @@ Authorization: Bearer <jwt>
   transaction: the old session is conditionally revoked (`revokedAt: null` guard)
   and its replacement is persisted atomically, making replay of an already-rotated
   token fail safely even under concurrency.
+- Email-verification and password-reset tokens are **opaque, high-entropy random
+  strings** (256 bits) whose SHA-256 hashes live in the `AuthToken` table
+  (`tokenHash` unique). A token belongs to exactly one user and purpose
+  (`EMAIL_VERIFICATION`/`PASSWORD_RESET`), can be used once (guarded in the same
+  transaction), and expires after the configured TTL. Only the hash is ever
+  stored — raw tokens, refresh tokens, passwords, and SMTP credentials are never
+  logged.
+- Re-issuing a token for the same user/purpose (resend / forgot) atomically
+  deletes the previous one, so old links stop working. Password reset consumes
+  the token, replaces the password hash, and revokes all refresh sessions in a
+  single transaction.
+- Resend/forgot endpoints return the same generic message for unknown, known,
+  and already-verified accounts and spend a comparable bcrypt baseline on the
+  unknown branch, preventing account enumeration and (best-effort) timing
+  differences.
+
+### Registration notes
+
+A successful registration also creates the refresh token and the
+email-verification token in the same transaction. Signing in does **not** require
+prior verification; `emailVerifiedAt` is set when `verify-email` succeeds.
+Resending for an already-verified account returns the generic message and mints
+no new token.
 - The `authenticate` middleware (`src/middleware/authenticate.ts`) validates the
   `Authorization: Bearer` header on protected routes and attaches `req.userId`.
 - Passwords are never stored in plaintext and never returned to clients.
@@ -1075,6 +1330,47 @@ member of the group the expense belongs to.
 - `403` — authenticated user is not a member of the expense's group
 - `404` — expense does not exist
 
+### PATCH /api/v1/expenses/:id
+
+Partially updates an expense. The authenticated requester must be a member of
+the group the expense belongs to. At least one field is required. `EQUAL` splits
+are always recomputed, so changing the total also redistributes the existing
+participants (equal splits always sum to the total). With `EXACT` splits the
+provided amounts must sum to the total; when `participants` is omitted the
+existing participant set and amounts are kept and only the sum is re-validated
+against the (possibly new) total. The payer must be a group member and every
+participant must be a group member. The currency is never editable. The expense,
+its splits, and an `EXPENSE_UPDATED` activity event are persisted atomically.
+
+Allowed fields (all optional):
+
+- `description` — non-empty string, max 280 characters
+- `amountMinorUnits` — non-negative integer minor units
+- `payerId` — the member who paid for the expense
+- `splitType` — `EQUAL` or `EXACT`
+- `participants` — replaces the participant set: `[{ userId, amountMinorUnits? }]`
+- `expenseDate` — ISO 8601 date with offset
+
+- `200` — returns `{ success, data: { expense } }` with the recomputed splits
+- `400` — validation failed (empty body, EXACT amounts not summing to the total, duplicate participants)
+- `401` — missing/invalid token
+- `403` — requester, payer, or a participant is not a group member
+- `404` — expense does not exist
+
+### DELETE /api/v1/expenses/:id
+
+Deletes an expense and its splits. The authenticated requester must be a member
+of the group the expense belongs to. Deletes the expense and records an
+`EXPENSE_DELETED` activity event carrying the deleted amount and currency in a
+single transaction, so the group's activity feed remains a faithful audit trail.
+Group balances are always derived from the remaining expenses; the summary
+snapshot is recomputed via the existing recompute job.
+
+- `204` — deleted; no body
+- `401` — missing/invalid token
+- `403` — authenticated user is not a member of the expense's group
+- `404` — expense does not exist
+
 ### Expenses Internals
 
 The expenses module lives under `src/modules/expenses/` and follows the same
@@ -1274,9 +1570,9 @@ endpoint requires authentication via the `Authorization: Bearer <jwt>` header.
 ### Purpose
 
 Activity events form a historical, auditable record of meaningful actions within
-a group (group creation, members added, expenses added, settlements recorded).
-They are **not** the source of truth for financial calculation. Balances remain
-derived from expenses, splits, and settlements only.
+a group (group creation, members added/removed, expenses added/updated/deleted,
+settlements recorded). They are **not** the source of truth for financial
+calculation. Balances remain derived from expenses, splits, and settlements only.
 
 ### Authorization Model
 
@@ -1329,7 +1625,8 @@ Response (200):
 }
 ```
 
-Supported `type` values: `GROUP_CREATED`, `MEMBER_ADDED`, `EXPENSE_ADDED`,
+Supported `type` values: `GROUP_CREATED`, `GROUP_UPDATED`, `MEMBER_ADDED`,
+`MEMBER_REMOVED`, `EXPENSE_ADDED`, `EXPENSE_UPDATED`, `EXPENSE_DELETED`,
 `SETTLEMENT_ADDED`. Events are filtered by `groupId` and paginated at the
 database level; only the actor's `id`, `name`, and `email` are returned — never
 a password hash or other sensitive authentication data.
@@ -1340,9 +1637,9 @@ The module lives under `src/modules/activity/` and follows the same layered
 architecture as the other modules. Activity reads go through
 `ActivityService.getGroupActivity` with database-level filtering, ordering, and
 pagination. Activity writes are emitted inside the *same* Prisma transactions as
-the domain operations that produce them (group creation, member add, expense
-creation, settlement creation), so a domain record can never be committed
-without its corresponding activity event.
+the domain operations that produce them (group creation/rename, member
+add/remove, expense creation/update/deletion, settlement creation), so a domain
+record can never be committed without its corresponding activity event.
 
 ## Group Summary API
 
@@ -1544,23 +1841,30 @@ Implemented so far (auth + groups + expenses + balances/settlements + activity f
 - Centralized Prisma client module with lifecycle utilities
 - Readiness endpoint (`/health/ready`) with mocked DB check in tests
 - Database scripts (`db:generate`, `db:migrate`, `db:migrate:dev`, `db:studio`, `db:validate`)
-- **Authentication API** (`/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`, `/api/v1/auth/me`)
+- **Authentication API** (`/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`, `/api/v1/auth/me` GET + PATCH)
 - JWT token signing/verification with configurable secret and lifetime
 - bcrypt password hashing (never stored or returned in plaintext)
 - Opaque refresh tokens with SHA-256 hashing at rest (`RefreshToken.tokenHash`)
 - Atomic refresh-token rotation (conditional revoke + replacement in one transaction)
 - Revocation-based session logout (idempotent) and `REFRESH_TOKEN_INVALID` safe errors
 - `authenticate` middleware for protecting routes
+- **Profile update** (`PATCH /api/v1/auth/me`) — name/email update with email-uniqueness enforcement and strict rejection of privileged fields
+- **Email verification** (`POST /api/v1/auth/verify-email`, `POST /api/v1/auth/resend-verification`) — single-use opaque tokens (SHA-256 hashed at rest) with configurable TTL; resend invalidates the previous link; generic success messages prevent account enumeration
+- **Password recovery** (`POST /api/v1/auth/forgot-password`, `POST /api/v1/auth/reset-password`) — single-use reset tokens, configurable TTL, atomic consume + password change + full session revocation
+- **Transactional email service** (`src/modules/email/`) — `EmailProvider` abstraction with a Nodemailer SMTP transport (`EMAIL_ENABLED=true`) and a log transport (`EMAIL_ENABLED=false`, the local-development default); best-effort delivery that never fails registration/forgot-password; Strict no-secrets logging (no bodies, tokens, passwords, or SMTP credentials in logs); email metrics (`emails_sent_total`, `email_send_failures_total`)
+- Dedicated sensitive rate limiter (`AUTH_EMAIL_RATE_LIMIT_MAX`) for the public email/verification endpoints
 - Module-based architecture (`src/modules/auth/`): routes → controller → service → repository → Prisma
 - **Groups & membership API** (`/api/v1/groups` CRUD + add/remove members)
 - Owner/member authorization for groups (`ForbiddenError` / HTTP 403)
 - Group creation with atomic creator-membership Prisma transaction
-- **Expenses & split API** (`/api/v1/groups/:groupId/expenses` create/list, `/api/v1/expenses/:id` detail)
+- **Expenses & split API** (`/api/v1/groups/:groupId/expenses` create/list, `/api/v1/expenses/:id` detail + PATCH + DELETE)
 - Group membership authorization for expenses (requester, payer, and split participants)
 - Deterministic EQUAL split calculation with exact-total remainder distribution
 - EXACT split validation (sum must equal the expense total)
 - Atomic expense + splits creation via a single Prisma transaction
 - Pure, unit-tested split calculation module (`split.util.ts`)
+- **Expense update** (`PATCH /api/v1/expenses/:id`) — partial update that merges over the current expense, recomputes splits, and persists expense + splits + `EXPENSE_UPDATED` activity event atomically
+- **Expense delete** (`DELETE /api/v1/expenses/:id`) — deletes the expense (splits cascade) and records an `EXPENSE_DELETED` activity event carrying the deleted amount/currency in the same transaction
 - **Balance calculation API** (`/api/v1/groups/:groupId/balances`)
 - Balances derived at request time from expenses, splits, and settlements (no persisted balance column)
 - Pure, unit-tested BIGINT balance calculation module (`balance.util.ts`) with a sum-to-zero invariant
@@ -1575,7 +1879,7 @@ Implemented so far (auth + groups + expenses + balances/settlements + activity f
 - Group membership authorization for activity reads (IDOR guard)
 - Deterministic, database-level ordering and pagination for the activity feed
 - Zod validation for activity query parameters (`page`, `limit`, safe cap)
-- Activity events (`GROUP_CREATED`, `MEMBER_ADDED`, `EXPENSE_ADDED`, `SETTLEMENT_ADDED`)
+- Activity events (`GROUP_CREATED`, `GROUP_UPDATED`, `MEMBER_ADDED`, `MEMBER_REMOVED`, `EXPENSE_ADDED`, `EXPENSE_UPDATED`, `EXPENSE_DELETED`, `SETTLEMENT_ADDED`)
   recorded in the same Prisma transactions as the domain operations that produce them
 - Safe actor/user projection (password hashes never exposed)
 - **Background job queue** (`src/queues/`) — Redis-backed ZSET queue with
@@ -1610,12 +1914,12 @@ Implemented so far (auth + groups + expenses + balances/settlements + activity f
 
 The following features are **NOT implemented** in this chunk:
 
-- Email verification / password reset
-- User management / profile update endpoints
-- Expense delete endpoint (creation, list, and detail are implemented)
+- Account deletion / deactivation (never implemented: Prisma `Restrict` foreign
+  keys and the absence of a deactivation column make deletion unsafe — deleting
+  a user would corrupt historical financial records; account lifecycle stays out
+  of scope)
 - Activity feed generation logic
 - Idempotency protection for expense creation (only settlement creation is protected in this PR)
-- Member-removed activity events (the `ActivityType` enum does not yet include a removal type)
 - Notifications / real-time activity pushes (the feed is read on demand)
 - Redis high availability: the infra assumes a single Redis endpoint; no
   Sentinel/Cluster topology or failover configuration is provided. Multi-instance
@@ -1672,6 +1976,8 @@ the shared request pipeline. The API serves them at `GET /metrics`
 | `users_registered_total` | counter | — | Successful registrations |
 | `groups_created_total` | counter | — | Successful group creations |
 | `expenses_created_total` | counter | — | Successful expense creations |
+| `expenses_updated_total` | counter | — | Successful expense updates |
+| `expenses_deleted_total` | counter | — | Successful expense deletions |
 | `settlements_created_total` | counter | — | Successful settlement creations |
 | `activity_events_created_total` | counter | `type` | Persisted activity events |
 | `background_jobs_succeeded_total` | counter | `job_type` | Jobs processed successfully |

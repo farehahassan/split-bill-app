@@ -113,6 +113,50 @@ export const refreshTokenRequestSchema: SchemaObject = {
   required: ["refreshToken"],
 };
 
+export const verifyEmailRequestSchema: SchemaObject = {
+  type: "object",
+  description:
+    "Presents the single-use token from the verification email. The plaintext token is a base64url string; only its hash is stored server-side.",
+  properties: {
+    token: {
+      type: "string",
+      description: "The token from the verification email link.",
+      example: "<verification-token>",
+    },
+  },
+  required: ["token"],
+};
+
+export const emailRequestSchema: SchemaObject = {
+  type: "object",
+  description:
+    "An email address used by the email-resend and password-recovery flows. The endpoint answers generically so it never reveals whether the address belongs to an account.",
+  properties: {
+    email: { type: "string", format: "email", example: "ahmed@example.com" },
+  },
+  required: ["email"],
+};
+
+export const resetPasswordRequestSchema: SchemaObject = {
+  type: "object",
+  description:
+    "Presents the single-use token from the reset email together with the new password. A successful reset revokes every existing session.",
+  properties: {
+    token: {
+      type: "string",
+      description: "The token from the password-reset email link.",
+      example: "<reset-token>",
+    },
+    newPassword: {
+      type: "string",
+      format: "password",
+      description: "The new password. At least 8 characters, at most 72 (bcrypt limit).",
+      example: "a-new-secure-password",
+    },
+  },
+  required: ["token", "newPassword"],
+};
+
 export const createGroupRequestSchema: SchemaObject = {
   type: "object",
   properties: {
@@ -127,6 +171,25 @@ export const updateGroupRequestSchema: SchemaObject = {
     name: { type: "string", description: "New group name. Trimmed, non-empty.", example: "Trip to Hunza" },
   },
   required: ["name"],
+};
+
+export const updateCurrentUserRequestSchema: SchemaObject = {
+  type: "object",
+  description:
+    "Updates the authenticated user's public profile. At least one field is required. Privileged fields are never accepted.",
+  properties: {
+    name: {
+      type: "string",
+      description: "Display name. Trimmed, 1-100 characters.",
+      example: "Ahmed Raza",
+    },
+    email: {
+      type: "string",
+      format: "email",
+      description: "A valid, unused email address.",
+      example: "ahmed@example.com",
+    },
+  },
 };
 
 export const addMemberRequestSchema: SchemaObject = {
@@ -354,6 +417,40 @@ export const createExpenseRequestSchema: SchemaObject = {
   required: ["description", "amountMinorUnits", "payerId", "splitType", "participants"],
 };
 
+export const updateExpenseRequestSchema: SchemaObject = {
+  type: "object",
+  description:
+    "Partially updates an existing expense. At least one field is required. The requester must be a member of the expense's group. `currencyCode` is never editable (all expenses are `PKR`). When `participants` is omitted the existing participants are kept and equal splits are recomputed; EXACT splits without a participants change must still sum to the (possibly new) total.",
+  properties: {
+    description: {
+      type: "string",
+      description: "Free text. Trimmed, 1-280 characters.",
+      example: "Dinner",
+    },
+    amountMinorUnits: {
+      ...minorUnitsSchema,
+      description: `${minorUnitsSchema.description} The new expense total.`,
+    },
+    payerId: { type: "string", format: "uuid", description: "The member who paid for the expense." },
+    splitType: {
+      type: "string",
+      enum: ["EQUAL", "EXACT"],
+      description: "How the total is divided among participants.",
+    },
+    participants: {
+      type: "array",
+      minItems: 1,
+      description: "Replaces the participant set. Omit to keep the existing participants.",
+      items: { $ref: "#/components/schemas/ExpenseParticipantInput" },
+    },
+    expenseDate: {
+      type: "string",
+      format: "date-time",
+      description: "ISO 8601 date with offset.",
+    },
+  },
+};
+
 export const settlementSchema: SchemaObject = {
   type: "object",
   description: "A recorded payment from one member to another that settles debt.",
@@ -422,7 +519,16 @@ export const activityEventSchema: SchemaObject = {
     userId: { type: "string", format: "uuid", description: "The user who performed the action (the actor)." },
     type: {
       type: "string",
-      enum: ["EXPENSE_ADDED", "SETTLEMENT_ADDED", "GROUP_CREATED", "MEMBER_ADDED"],
+      enum: [
+        "EXPENSE_ADDED",
+        "EXPENSE_UPDATED",
+        "EXPENSE_DELETED",
+        "SETTLEMENT_ADDED",
+        "GROUP_CREATED",
+        "GROUP_UPDATED",
+        "MEMBER_ADDED",
+        "MEMBER_REMOVED",
+      ],
     },
     message: { type: "string", example: "added the expense \"Dinner\"" },
     amountMinorUnits: {

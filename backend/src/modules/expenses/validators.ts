@@ -41,5 +41,30 @@ export const expenseParamsSchema = z.object({
   id: z.string().min(1, "Expense ID is required"),
 });
 
+const expenseParticipantSchema = z.object({
+  userId: z.string().min(1, "Participant user ID is required"),
+  amountMinorUnits: safeAmount.optional(),
+});
+
+export const updateExpenseBodySchema = z
+  .object({
+    description: z
+      .string()
+      .trim()
+      .min(1, "Description is required")
+      .max(280, "Description is too long")
+      .optional(),
+    amountMinorUnits: safeAmount.optional(),
+    payerId: z.string().min(1, "Payer ID is required").optional(),
+    splitType: z.enum(["EQUAL", "EXACT"]).optional(),
+    participants: z.array(expenseParticipantSchema).min(1, "At least one participant is required").optional(),
+    expenseDate: z.string().datetime({ offset: true }).optional(),
+  })
+  .strict()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "At least one field is required",
+  });
+
 export type CreateExpenseBody = z.infer<typeof createExpenseBodySchema>;
 export type ExpenseParams = z.infer<typeof expenseParamsSchema>;
+export type UpdateExpenseBody = z.infer<typeof updateExpenseBodySchema>;
