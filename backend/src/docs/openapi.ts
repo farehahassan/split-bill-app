@@ -10,6 +10,7 @@ import {
   createGroupRequestSchema,
   createSettlementRequestSchema,
   dateTimeSchema,
+  emailRequestSchema,
   errorBodySchema,
   expenseParticipantInputSchema,
   expenseSchema,
@@ -30,10 +31,14 @@ import {
   readinessUnavailableResponseSchema,
   refreshTokenRequestSchema,
   registerRequestSchema,
+  resetPasswordRequestSchema,
   settlementSchema,
+  updateCurrentUserRequestSchema,
+  updateExpenseRequestSchema,
   updateGroupRequestSchema,
   userSchema,
   uuidSchema,
+  verifyEmailRequestSchema,
 } from "./components/schemas.js";
 import {
   badRequestResponse,
@@ -75,7 +80,13 @@ const API_DOCUMENTATION_DESCRIPTION = `REST API for the Hisab split-bill applica
 
 Most endpoints require a bearer access token: \`Authorization: Bearer <access-token>\`. The token is a short-lived JWT obtained from \`POST /api/v1/auth/register\` or \`POST /api/v1/auth/login\`. When an access token expires, \`POST /api/v1/auth/refresh\` exchanges a refresh token for a new access token and rotates the refresh token in the same atomic operation. \`POST /api/v1/auth/logout\` revokes the presented refresh-token session.
 
-Public endpoints (registration, login, refresh, logout, health checks, and metrics) do not require a token.
+## Email verification and password recovery
+
+\`POST /api/v1/auth/verify-email\` confirms a user's email with a single-use token from a verification email. \`POST /api/v1/auth/resend-verification\` mints a new verification link; the previous one stops working. \`POST /api/v1/auth/forgot-password\` mints a single-use password-reset link, and \`POST /api/v1/auth/reset-password\` applies the new password while revoking all existing sessions.
+
+Both \`resend-verification\` and \`forgot-password\` always return the same success message, so the endpoints never reveal whether an email belongs to an account. Email delivery is best-effort: a temporary SMTP failure does not fail the request, and the sender can simply try again. The public email endpoints have a tighter per-IP rate limit than the rest of the auth routes.
+
+Public endpoints (registration, login, refresh, logout, email verification, password recovery, health checks, and metrics) do not require a token.
 
 ## Response envelope
 
@@ -113,7 +124,7 @@ export function createOpenApiDocument(): OpenApiDocument {
     tags: [
       { name: "Health", description: "Liveness and readiness probes." },
       { name: "Metrics", description: "Prometheus metrics endpoint." },
-      { name: "Authentication", description: "Register, login, session refresh, and logout." },
+      { name: "Authentication", description: "Register, login, session refresh, logout, email verification, and password recovery." },
       { name: "Groups", description: "Groups and memberships." },
       { name: "Expenses", description: "Expenses and split calculation." },
       { name: "Settlements", description: "Group balances and settlements." },
@@ -141,6 +152,10 @@ export function createOpenApiDocument(): OpenApiDocument {
         RegisterRequest: registerRequestSchema,
         LoginRequest: loginRequestSchema,
         RefreshTokenRequest: refreshTokenRequestSchema,
+        VerifyEmailRequest: verifyEmailRequestSchema,
+        EmailRequest: emailRequestSchema,
+        ResetPasswordRequest: resetPasswordRequestSchema,
+        UpdateCurrentUserRequest: updateCurrentUserRequestSchema,
         CreateGroupRequest: createGroupRequestSchema,
         UpdateGroupRequest: updateGroupRequestSchema,
         AddMemberRequest: addMemberRequestSchema,
@@ -151,6 +166,7 @@ export function createOpenApiDocument(): OpenApiDocument {
         ExpenseSplit: expenseSplitSchema,
         ExpenseParticipantInput: expenseParticipantInputSchema,
         CreateExpenseRequest: createExpenseRequestSchema,
+        UpdateExpenseRequest: updateExpenseRequestSchema,
         Expense: expenseSchema,
         ExpenseSummary: expenseSummarySchema,
         Settlement: settlementSchema,

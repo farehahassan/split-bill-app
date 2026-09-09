@@ -36,6 +36,33 @@ export async function getExpenseById(req: Request, res: Response): Promise<void>
   res.status(HTTP_STATUSES.OK).json({ success: true, data: { expense } });
 }
 
+export async function updateExpense(req: Request, res: Response): Promise<void> {
+  const expenseId = (req.params as { id: string }).id;
+  const body = req.body as {
+    description?: string;
+    amountMinorUnits?: number;
+    payerId?: string;
+    splitType?: "EQUAL" | "EXACT";
+    participants?: Array<{ userId: string; amountMinorUnits?: number }>;
+    expenseDate?: string;
+  };
+  const expense = await expenseService.updateExpense(req.userId!, expenseId, {
+    description: body.description,
+    amountMinorUnits: body.amountMinorUnits,
+    payerId: body.payerId,
+    splitType: body.splitType,
+    participants: body.participants,
+    expenseDate: body.expenseDate,
+  });
+  res.status(HTTP_STATUSES.OK).json({ success: true, data: { expense } });
+}
+
+export async function deleteExpense(req: Request, res: Response): Promise<void> {
+  const expenseId = (req.params as { id: string }).id;
+  await expenseService.deleteExpense(req.userId!, expenseId);
+  res.status(HTTP_STATUSES.NO_CONTENT).send();
+}
+
 export async function getGroupExpenses(req: Request, res: Response): Promise<void> {
   const groupId = (req.params as { id: string }).id;
   const expenses = await expenseService.getGroupExpenses(req.userId!, groupId);

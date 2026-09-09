@@ -88,7 +88,11 @@ export class GroupService {
       );
     }
 
-    const updated = await this.repository.updateGroup(groupId, data);
+    const updated = await this.repository.updateGroup(groupId, data, {
+      userId,
+      type: "GROUP_UPDATED",
+      message: `renamed the group to "${data.name}"`,
+    });
     if (!updated) {
       throw new NotFoundError(APP_ERRORS.GROUP_NOT_FOUND, "Group not found.");
     }
@@ -189,7 +193,16 @@ export class GroupService {
       throw new NotFoundError(APP_ERRORS.NOT_GROUP_MEMBER, "Member not found in this group.");
     }
 
-    await this.repository.removeGroupMember(groupId, memberId);
+    const targetUser = await this.repository.findUserById(memberId);
+    if (!targetUser) {
+      throw new NotFoundError(APP_ERRORS.USER_NOT_FOUND, "User not found.");
+    }
+
+    await this.repository.removeGroupMember(groupId, memberId, {
+      userId,
+      type: "MEMBER_REMOVED",
+      message: `removed ${targetUser.name} from the group`,
+    });
     await this.cache.invalidateGroupCache(groupId);
   }
 }

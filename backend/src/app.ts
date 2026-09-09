@@ -4,7 +4,7 @@ import helmet from "helmet";
 
 import { loadEnv } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
-import { apiLimiter, authLimiter } from "./middleware/rateLimiter.js";
+import { apiLimiter, authLimiter, sensitiveEmailAuthLimiter } from "./middleware/rateLimiter.js";
 import { requestId } from "./middleware/requestId.js";
 import { requestCompletionLogger } from "./middleware/requestCompletionLogger.js";
 import { requestHttpMetrics } from "./metrics/httpMetrics.js";
@@ -68,6 +68,19 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.use("/api/docs", docsRoutes);
 
   app.use("/api/v1/auth", authLimiter(redis));
+
+  // Public email-verification / password-recovery endpoints accept
+  // unauthenticated email or token input and get their own, tighter budget.
+  const emailAuthLeaves = [
+    "verify-email",
+    "resend-verification",
+    "forgot-password",
+    "reset-password",
+  ];
+  for (const leaf of emailAuthLeaves) {
+    app.use(`/api/v1/auth/${leaf}`, sensitiveEmailAuthLimiter(redis));
+  }
+
   app.use("/api/v1", apiV1Routes);
 
   app.use(notFoundHandler);

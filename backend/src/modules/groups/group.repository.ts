@@ -173,7 +173,16 @@ export class GroupRepository {
       .then((member) => member !== null);
   }
 
-  async updateGroup(id: string, data: { name: string }): Promise<Group | null> {
+  /**
+   * Renames the group and records the group-updated activity event atomically.
+   * Returns `null` when the group no longer exists, so the service can turn
+   * that into a `GROUP_NOT_FOUND` error without leaking a Prisma failure code.
+   */
+  async updateGroup(
+    id: string,
+    data: { name: string },
+    activity: ActivityEventInput,
+  ): Promise<Group | null> {
     const existing = await prisma.group.findUnique({
       where: { id },
       select: { id: true },
@@ -182,11 +191,25 @@ export class GroupRepository {
       return null;
     }
 
-    return prisma.group.update({
-      where: { id },
-      data: {
-        name: data.name,
-      },
+    return prisma.$transaction(async (tx) => {
+      const group = await tx.group.update({
+        where: { id },
+        data: {
+          name: data.name,
+        },
+      });
+
+      await createActivityEvent(tx, {
+        groupId: group.id,
+        userId: activity.userId,
+        type: activity.type,
+        message: activity.message,
+        amountMinorUnits: null,
+        currencyCode: null,
+        occurredAt: new Date(),
+      });
+
+      return group;
     });
   }
 
@@ -235,14 +258,34 @@ export class GroupRepository {
     });
   }
 
-  async removeGroupMember(groupId: string, memberId: string): Promise<void> {
-    await prisma.groupMember.delete({
-      where: {
-        groupId_userId: {
-          groupId,
-          userId: memberId,
+  /**
+   * Removes a group member and records the member-removed activity event
+   * atomically, so a membership can never disappear without its audit trail.
+   */
+  async removeGroupMember(
+    groupId: string,
+    memberId: string,
+    activity: ActivityEventInput,
+  ): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      await tx.groupMember.delete({
+        where: {
+          groupId_userId: {
+            groupId,
+            userId: memberId,
+          },
         },
-      },
+      });
+
+      await createActivityEvent(tx, {
+        groupId,
+        userId: activity.userId,
+        type: activity.type,
+        message: activity.message,
+        amountMinorUnits: null,
+        currencyCode: null,
+        occurredAt: new Date(),
+      });
     });
   }
 }

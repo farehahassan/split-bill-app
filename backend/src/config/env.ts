@@ -14,6 +14,7 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  AUTH_EMAIL_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
   REDIS_URL: z.string().default("redis://localhost:6379"),
   TRUST_PROXY: z.string().default("false"),
   DISTRIBUTED_LOCK_TTL_MS: z.coerce.number().int().positive().default(10000),
@@ -26,6 +27,21 @@ const envSchema = z.object({
   CACHE_GROUP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
   METRICS_PORT: z.coerce.number().int().positive().optional(),
+  // Transactional email (verification and password recovery). When EMAIL_ENABLED
+  // is "false" the backend never connects to an SMTP server: auth emails are
+  // logged instead, which is the local-development/testing behavior.
+  EMAIL_ENABLED: z.enum(["true", "false"]).default("false"),
+  EMAIL_HOST: z.string().default("localhost"),
+  EMAIL_PORT: z.coerce.number().int().positive().default(587),
+  EMAIL_SECURE: z.enum(["true", "false"]).default("true"),
+  EMAIL_USERNAME: z.string().default(""),
+  EMAIL_PASSWORD: z.string().default(""),
+  EMAIL_FROM: z.string().default("no-reply@localhost"),
+  EMAIL_FROM_NAME: z.string().default("Hisab"),
+  APP_NAME: z.string().default("Hisab Split Bill"),
+  APP_BASE_URL: z.string().url("APP_BASE_URL must be an absolute URL").default("http://localhost:3000"),
+  EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(1440),
+  PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(60),
 });
 
 export type Env = z.infer<typeof envSchema>;
