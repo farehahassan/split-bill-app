@@ -6,7 +6,15 @@ export interface ActivityEventDto {
   id: string;
   groupId: string;
   userId: string;
-  type: "EXPENSE_ADDED" | "SETTLEMENT_ADDED" | "GROUP_CREATED" | "MEMBER_ADDED";
+  type:
+    | "EXPENSE_ADDED"
+    | "EXPENSE_UPDATED"
+    | "EXPENSE_DELETED"
+    | "SETTLEMENT_ADDED"
+    | "GROUP_CREATED"
+    | "GROUP_UPDATED"
+    | "MEMBER_ADDED"
+    | "MEMBER_REMOVED";
   message: string;
   amountMinorUnits: number | null;
   currencyCode: string | null;

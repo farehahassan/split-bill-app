@@ -28,6 +28,52 @@ export const refreshTokenBodySchema = z
   })
   .strict();
 
+export const updateProfileBodySchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(100, "Name is too long").optional(),
+    email: emailSchema.optional(),
+  })
+  .strict()
+  .refine((data) => data.name !== undefined || data.email !== undefined, {
+    message: "At least one of name or email is required",
+  });
+
+// Opaque base64url tokens issued by generateAuthToken.
+const authTokenSchema = z
+  .string()
+  .min(1, "Token is required")
+  .regex(/^[A-Za-z0-9_-]+$/, "Invalid token format");
+
+export const verifyEmailBodySchema = z
+  .object({
+    token: authTokenSchema,
+  })
+  .strict();
+
+export const resendVerificationBodySchema = z
+  .object({
+    email: emailSchema,
+  })
+  .strict();
+
+export const forgotPasswordBodySchema = z
+  .object({
+    email: emailSchema,
+  })
+  .strict();
+
+export const resetPasswordBodySchema = z
+  .object({
+    token: authTokenSchema,
+    newPassword: passwordSchema,
+  })
+  .strict();
+
 export type RegisterBody = z.infer<typeof registerBodySchema>;
 export type LoginBody = z.infer<typeof loginBodySchema>;
 export type RefreshTokenBody = z.infer<typeof refreshTokenBodySchema>;
+export type UpdateProfileBody = z.infer<typeof updateProfileBodySchema>;
+export type VerifyEmailBody = z.infer<typeof verifyEmailBodySchema>;
+export type ResendVerificationBody = z.infer<typeof resendVerificationBodySchema>;
+export type ForgotPasswordBody = z.infer<typeof forgotPasswordBodySchema>;
+export type ResetPasswordBody = z.infer<typeof resetPasswordBodySchema>;

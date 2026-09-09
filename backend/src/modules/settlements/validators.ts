@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { idSchema } from "../../utils/idSchema.js";
+
 const safeAmount = z
   .number()
   .int("Amount must be a whole number of minor units")
@@ -12,7 +14,7 @@ const safeAmount = z
  * routes are mounted inside the group router.
  */
 export const settlementGroupParamsSchema = z.object({
-  id: z.string().min(1, "Group ID is required"),
+  id: idSchema,
 });
 
 /**
@@ -20,13 +22,13 @@ export const settlementGroupParamsSchema = z.object({
  * endpoint, which resolves a settlement by its own id.
  */
 export const settlementParamsSchema = z.object({
-  id: z.string().min(1, "Settlement ID is required"),
+  id: idSchema,
 });
 
 export const createSettlementBodySchema = z
   .object({
-    payerId: z.string().min(1, "Payer ID is required"),
-    payeeId: z.string().min(1, "Payee ID is required"),
+    payerId: idSchema,
+    payeeId: idSchema,
     amountMinorUnits: safeAmount,
   })
   .strict();

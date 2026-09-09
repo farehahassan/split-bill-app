@@ -17,6 +17,10 @@ const EXPECTED_PATHS = [
   "/api/v1/auth/login",
   "/api/v1/auth/refresh",
   "/api/v1/auth/logout",
+  "/api/v1/auth/verify-email",
+  "/api/v1/auth/resend-verification",
+  "/api/v1/auth/forgot-password",
+  "/api/v1/auth/reset-password",
   "/api/v1/auth/me",
   "/api/v1/groups",
   "/api/v1/groups/{id}",
@@ -40,6 +44,10 @@ const PUBLIC_OPERATION_IDS = [
   "loginUser",
   "refreshSession",
   "logoutUser",
+  "verifyEmailAddress",
+  "resendVerificationEmail",
+  "requestPasswordReset",
+  "resetUserPassword",
 ];
 
 const IMPORTANT_SCHEMAS = [
@@ -48,6 +56,10 @@ const IMPORTANT_SCHEMAS = [
   "MinorUnits",
   "User",
   "AuthSession",
+  "UpdateCurrentUserRequest",
+  "VerifyEmailRequest",
+  "EmailRequest",
+  "ResetPasswordRequest",
   "Group",
   "GroupWithMemberCount",
   "GroupWithMembers",
@@ -56,6 +68,7 @@ const IMPORTANT_SCHEMAS = [
   "Expense",
   "ExpenseSummary",
   "CreateExpenseRequest",
+  "UpdateExpenseRequest",
   "Settlement",
   "CreateSettlementRequest",
   "Balance",
@@ -241,7 +254,7 @@ describe("OpenAPI document", () => {
 
 describe("Path item structure", () => {
   it("declares only the HTTP methods the backend implements", () => {
-    const allowedMethods = new Set(["get", "post", "put", "delete"]);
+    const allowedMethods = new Set(["get", "post", "put", "delete", "patch"]);
     for (const item of Object.values(document.paths)) {
       const methods = (Object.keys(item) as Array<keyof PathItemObject>).filter(
         (key) => key !== "summary" && key !== "description" && key !== "parameters",

@@ -42,11 +42,11 @@ function fakeQueue(enqueue: ReturnType<typeof vi.fn>) {
   return { enqueue };
 }
 
-const ownerId = "owner-1";
-const aliceId = "alice-1";
-const outsiderId = "outsider-1";
+const ownerId = "55555555-5555-4555-8555-555555555555";
+const aliceId = "99999999-9999-4999-8999-999999999999";
+const outsiderId = "88888888-8888-4888-8888-888888888888";
 
-const group = { id: "group-1", name: "Trip to Naran", createdById: ownerId };
+const group = { id: "11111111-1111-4111-8111-111111111111", name: "Trip to Naran", createdById: ownerId };
 
 function memberRow() {
   return { id: "membership-1" };
@@ -55,7 +55,7 @@ function memberRow() {
 function storedSummary(overrides: Record<string, unknown> = {}) {
   return {
     id: "summary-1",
-    groupId: "group-1",
+    groupId: "11111111-1111-4111-8111-111111111111",
     totalSpentMinorUnits: 1000n,
     expenseCount: 3,
     settlementCount: 2,
@@ -83,7 +83,7 @@ describe("Group summary API", () => {
         vi.fn().mockResolvedValue({
           jobId: "job-1",
           type: JOB_TYPES.GROUP_SUMMARY_RECOMPUTE,
-          payload: { groupId: "group-1" },
+          payload: { groupId: "11111111-1111-4111-8111-111111111111" },
           attempts: 0,
           createdAt: new Date().toISOString(),
         }),
@@ -98,7 +98,7 @@ describe("Group summary API", () => {
       mockPrisma.groupMember.findUnique.mockResolvedValue(memberRow());
 
       const res = await request(app)
-        .post("/api/v1/groups/group-1/summary/recompute")
+        .post("/api/v1/groups/11111111-1111-4111-8111-111111111111/summary/recompute")
         .set("Authorization", `Bearer ${signToken(aliceId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.ACCEPTED);
@@ -111,14 +111,14 @@ describe("Group summary API", () => {
       const enqueue = mockGetJobQueue().enqueue as ReturnType<typeof vi.fn>;
       expect(enqueue).toHaveBeenCalledWith(
         JOB_TYPES.GROUP_SUMMARY_RECOMPUTE,
-        { groupId: "group-1" },
+        { groupId: "11111111-1111-4111-8111-111111111111" },
         { requestId: expect.any(String) },
       );
       expect(JSON.stringify(res.body)).not.toContain("groupId");
     });
 
     it("returns 401 without authentication", async () => {
-      const res = await request(app).post("/api/v1/groups/group-1/summary/recompute");
+      const res = await request(app).post("/api/v1/groups/11111111-1111-4111-8111-111111111111/summary/recompute");
       expect(res.status).toBe(HTTP_STATUSES.UNAUTHORIZED);
       expect(mockGetJobQueue).not.toHaveBeenCalled();
     });
@@ -128,7 +128,7 @@ describe("Group summary API", () => {
       mockPrisma.groupMember.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
-        .post("/api/v1/groups/group-1/summary/recompute")
+        .post("/api/v1/groups/11111111-1111-4111-8111-111111111111/summary/recompute")
         .set("Authorization", `Bearer ${signToken(outsiderId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.FORBIDDEN);
@@ -139,7 +139,7 @@ describe("Group summary API", () => {
       mockPrisma.group.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
-        .post("/api/v1/groups/missing/summary/recompute")
+        .post("/api/v1/groups/00000000-0000-4000-8000-000000000099/summary/recompute")
         .set("Authorization", `Bearer ${signToken(aliceId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.NOT_FOUND);
@@ -154,7 +154,7 @@ describe("Group summary API", () => {
       );
 
       const res = await request(app)
-        .post("/api/v1/groups/group-1/summary/recompute")
+        .post("/api/v1/groups/11111111-1111-4111-8111-111111111111/summary/recompute")
         .set("Authorization", `Bearer ${signToken(aliceId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.INTERNAL_SERVER_ERROR);
@@ -169,14 +169,14 @@ describe("Group summary API", () => {
       mockPrisma.groupSummary.findUnique.mockResolvedValue(storedSummary());
 
       const res = await request(app)
-        .get("/api/v1/groups/group-1/summary")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/summary")
         .set("Authorization", `Bearer ${signToken(aliceId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.OK);
       expect(res.body.success).toBe(true);
       expect(res.body.data.summary).toMatchObject({
         id: "summary-1",
-        groupId: "group-1",
+        groupId: "11111111-1111-4111-8111-111111111111",
         totalSpentMinorUnits: 1000,
         expenseCount: 3,
         settlementCount: 2,
@@ -186,7 +186,7 @@ describe("Group summary API", () => {
     });
 
     it("returns 401 without authentication", async () => {
-      const res = await request(app).get("/api/v1/groups/group-1/summary");
+      const res = await request(app).get("/api/v1/groups/11111111-1111-4111-8111-111111111111/summary");
       expect(res.status).toBe(HTTP_STATUSES.UNAUTHORIZED);
     });
 
@@ -195,7 +195,7 @@ describe("Group summary API", () => {
       mockPrisma.groupMember.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
-        .get("/api/v1/groups/group-1/summary")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/summary")
         .set("Authorization", `Bearer ${signToken(outsiderId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.FORBIDDEN);
@@ -205,7 +205,7 @@ describe("Group summary API", () => {
       mockPrisma.group.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
-        .get("/api/v1/groups/missing/summary")
+        .get("/api/v1/groups/00000000-0000-4000-8000-000000000099/summary")
         .set("Authorization", `Bearer ${signToken(aliceId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.NOT_FOUND);
@@ -217,7 +217,7 @@ describe("Group summary API", () => {
       mockPrisma.groupSummary.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
-        .get("/api/v1/groups/group-1/summary")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/summary")
         .set("Authorization", `Bearer ${signToken(aliceId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.NOT_FOUND);

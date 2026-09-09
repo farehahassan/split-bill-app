@@ -58,12 +58,12 @@ import { prisma } from "../src/db/prisma.js";
 
 const mockPrisma = vi.mocked(prisma);
 
-const ownerId = "owner-1";
-const memberId = "member-1";
-const outsiderId = "outsider-1";
+const ownerId = "55555555-5555-4555-8555-555555555555";
+const memberId = "66666666-6666-4666-8666-666666666666";
+const outsiderId = "88888888-8888-4888-8888-888888888888";
 
 const group = {
-  id: "group-1",
+  id: "11111111-1111-4111-8111-111111111111",
   name: "Trip to Naran",
   createdById: ownerId,
   createdAt: new Date("2026-01-01T10:00:00.000Z"),
@@ -121,7 +121,7 @@ describe("Group caching API", () => {
       mockPrisma.groupMember.findUnique.mockResolvedValue(groupMemberRow);
 
       const res = await request(app)
-        .get("/api/v1/groups/group-1")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111")
         .set("Authorization", `Bearer ${signToken(ownerId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.OK);
@@ -129,8 +129,8 @@ describe("Group caching API", () => {
       expect(res.body.data.group.members).toHaveLength(2);
       expect(mockPrisma.group.findUnique).toHaveBeenCalledTimes(1);
       expect(fakeCache.setCachedGroupById).toHaveBeenCalledWith(
-        "group-1",
-        expect.objectContaining({ id: "group-1", name: "Trip to Naran" }),
+        "11111111-1111-4111-8111-111111111111",
+        expect.objectContaining({ id: "11111111-1111-4111-8111-111111111111", name: "Trip to Naran" }),
       );
     });
 
@@ -139,7 +139,7 @@ describe("Group caching API", () => {
       mockPrisma.groupMember.findUnique.mockResolvedValue(groupMemberRow);
 
       const res = await request(app)
-        .get("/api/v1/groups/group-1")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111")
         .set("Authorization", `Bearer ${signToken(ownerId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.OK);
@@ -153,7 +153,7 @@ describe("Group caching API", () => {
       mockPrisma.groupMember.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
-        .get("/api/v1/groups/group-1")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111")
         .set("Authorization", `Bearer ${signToken(outsiderId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.FORBIDDEN);
@@ -168,7 +168,7 @@ describe("Group caching API", () => {
       mockPrisma.groupMember.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
-        .get("/api/v1/groups/group-1")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111")
         .set("Authorization", `Bearer ${signToken(outsiderId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.FORBIDDEN);
@@ -179,7 +179,7 @@ describe("Group caching API", () => {
       mockPrisma.group.findUnique.mockResolvedValueOnce(null);
 
       const res = await request(app)
-        .get("/api/v1/groups/missing")
+        .get("/api/v1/groups/00000000-0000-4000-8000-000000000099")
         .set("Authorization", `Bearer ${signToken(ownerId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.NOT_FOUND);
@@ -187,7 +187,7 @@ describe("Group caching API", () => {
     });
 
     it("returns 401 without authentication and never consults the cache", async () => {
-      const res = await request(app).get("/api/v1/groups/group-1");
+      const res = await request(app).get("/api/v1/groups/11111111-1111-4111-8111-111111111111");
 
       expect(res.status).toBe(HTTP_STATUSES.UNAUTHORIZED);
       expect(fakeCache.getCachedGroupById).not.toHaveBeenCalled();
@@ -199,16 +199,22 @@ describe("Group caching API", () => {
       mockPrisma.group.findUnique
         .mockResolvedValueOnce(group)
         .mockResolvedValueOnce({ id: group.id });
-      mockPrisma.group.update.mockResolvedValue({ ...group, name: "Updated Name" });
+      mockPrisma.$transaction.mockImplementation(async (fn) => {
+        const tx = {
+          group: { update: vi.fn().mockResolvedValue({ ...group, name: "Updated Name" }) },
+          activityEvent: { create: vi.fn().mockResolvedValue({ id: "event-1" }) },
+        };
+        return fn(tx);
+      });
 
       const res = await request(app)
-        .put("/api/v1/groups/group-1")
+        .put("/api/v1/groups/11111111-1111-4111-8111-111111111111")
         .set("Authorization", `Bearer ${signToken(ownerId)}`)
         .send({ name: "Updated Name" });
 
       expect(res.status).toBe(HTTP_STATUSES.OK);
       expect(res.body.data.group.name).toBe("Updated Name");
-      expect(fakeCache.invalidateGroupCache).toHaveBeenCalledWith("group-1");
+      expect(fakeCache.invalidateGroupCache).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
     });
 
     it("invalidates after adding a member", async () => {
@@ -230,12 +236,12 @@ describe("Group caching API", () => {
       });
 
       const res = await request(app)
-        .post("/api/v1/groups/group-1/members")
+        .post("/api/v1/groups/11111111-1111-4111-8111-111111111111/members")
         .set("Authorization", `Bearer ${signToken(ownerId)}`)
         .send({ userId: memberId });
 
       expect(res.status).toBe(HTTP_STATUSES.CREATED);
-      expect(fakeCache.invalidateGroupCache).toHaveBeenCalledWith("group-1");
+      expect(fakeCache.invalidateGroupCache).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
     });
 
     it("invalidates after deleting the group", async () => {
@@ -243,11 +249,11 @@ describe("Group caching API", () => {
       mockPrisma.group.delete.mockResolvedValue(group);
 
       const res = await request(app)
-        .delete("/api/v1/groups/group-1")
+        .delete("/api/v1/groups/11111111-1111-4111-8111-111111111111")
         .set("Authorization", `Bearer ${signToken(ownerId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.NO_CONTENT);
-      expect(fakeCache.invalidateGroupCache).toHaveBeenCalledWith("group-1");
+      expect(fakeCache.invalidateGroupCache).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
     });
 
     it("invalidates after removing a member", async () => {
@@ -255,14 +261,25 @@ describe("Group caching API", () => {
         .mockResolvedValueOnce(group)
         .mockResolvedValueOnce({ id: group.id, createdById: ownerId });
       mockPrisma.groupMember.findUnique.mockResolvedValue(groupMemberRow);
-      mockPrisma.groupMember.delete.mockResolvedValue(groupMemberRow);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: memberId,
+        name: "Sana",
+        email: "sana@example.com",
+      });
+      mockPrisma.$transaction.mockImplementation(async (fn) => {
+        const tx = {
+          groupMember: { delete: vi.fn().mockResolvedValue(groupMemberRow) },
+          activityEvent: { create: vi.fn().mockResolvedValue({ id: "event-1" }) },
+        };
+        return fn(tx);
+      });
 
       const res = await request(app)
-        .delete(`/api/v1/groups/group-1/members/${memberId}`)
+        .delete(`/api/v1/groups/11111111-1111-4111-8111-111111111111/members/${memberId}`)
         .set("Authorization", `Bearer ${signToken(ownerId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.NO_CONTENT);
-      expect(fakeCache.invalidateGroupCache).toHaveBeenCalledWith("group-1");
+      expect(fakeCache.invalidateGroupCache).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
     });
   });
 });

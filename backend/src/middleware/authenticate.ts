@@ -25,8 +25,19 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
     return;
   }
 
-  const [scheme, token] = header.split(" ");
-  if (scheme !== "Bearer" || !token) {
+  // Strict Bearer parsing: the header must be exactly one scheme followed by
+  // one non-empty token. Extra whitespace/tokens ("Bearer a b", leading
+  // spaces, empty token) are rejected rather than loosely accepted.
+  const parts = header.trim().split(/\s+/);
+  const scheme = parts[0];
+  const token = parts[1];
+  if (
+    parts.length !== 2 ||
+    scheme === undefined ||
+    token === undefined ||
+    scheme.toLowerCase() !== "bearer" ||
+    token.length === 0
+  ) {
     next(new UnauthorizedError(APP_ERRORS.TOKEN_MISSING, "Bearer token is required."));
     return;
   }

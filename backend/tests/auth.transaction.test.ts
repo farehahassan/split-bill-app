@@ -4,10 +4,22 @@ vi.mock("../src/db/prisma.js", async () => {
   return {
     prisma: {
       $transaction: vi.fn(),
+      user: {
+        findUnique: vi.fn(),
+        update: vi.fn(),
+        updateMany: vi.fn(),
+        findUniqueOrThrow: vi.fn(),
+      },
       refreshToken: {
         findUnique: vi.fn(),
         create: vi.fn(),
         updateMany: vi.fn(),
+      },
+      authToken: {
+        findUnique: vi.fn(),
+        create: vi.fn(),
+        updateMany: vi.fn(),
+        deleteMany: vi.fn(),
       },
     },
   };
@@ -150,5 +162,248 @@ describe("AuthRepository refresh-token rotation", () => {
         expiresAt: new Date(),
       }),
     ).rejects.toThrow("db boom");
+  });
+});
+
+describe("AuthRepository email-verification / password-recovery persistence", () => {
+  function makeAuthTx() {
+    return {
+      user: {
+        create: vi.fn().mockResolvedValue({
+          id: "user-1",
+          name: "Ahmed Raza",
+          email: "ahmed@example.com",
+          passwordHash: "hash",
+          emailVerifiedAt: null,
+        }),
+        update: vi.fn().mockResolvedValue({
+          id: "user-1",
+          name: "Ahmed Raza",
+          email: "ahmed@example.com",
+          emailVerifiedAt: new Date(),
+        }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: vi.fn().mockResolvedValue({
+          id: "user-1",
+          name: "Ahmed Raza",
+          email: "ahmed@example.com",
+        }),
+      },
+      refreshToken: {
+        create: vi.fn().mockResolvedValue({ id: "rt-1" }),
+        updateMany: vi.fn().mockResolvedValue({ count: 2 }),
+      },
+      authToken: {
+        create: vi.fn().mockResolvedValue({ id: "at-1" }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+  }
+
+  describe("createUserWithAuthData", () => {
+    it("creates the user, the refresh token, and the verification token in one transaction", async () => {
+      const tx = makeAuthTx();
+      mockPrisma.$transaction.mockImplementation(runTransaction(tx));
+
+      const repository = new AuthRepository();
+      const user = await repository.createUserWithAuthData({
+        name: "Ahmed Raza",
+        email: "ahmed@example.com",
+        passwordHash: "hash",
+        refreshTokenHash: "a".repeat(64),
+        refreshTokenExpiresAt: new Date(),
+        verificationTokenHash: "b".repeat(64),
+        verificationTokenExpiresAt: new Date(),
+      });
+
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(tx.user.create).toHaveBeenCalledWith({
+        data: { name: "Ahmed Raza", email: "ahmed@example.com", passwordHash: "hash" },
+      });
+      expect(tx.refreshToken.create).toHaveBeenCalledWith({
+        data: {
+          userId: "user-1",
+          tokenHash: "a".repeat(64),
+          expiresAt: expect.any(Date),
+        },
+      });
+      expect(tx.authToken.create).toHaveBeenCalledWith({
+        data: {
+          userId: "user-1",
+          purpose: "EMAIL_VERIFICATION",
+          tokenHash: "b".repeat(64),
+          expiresAt: expect.any(Date),
+        },
+      });
+      expect(user).toEqual({
+        id: "user-1",
+        name: "Ahmed Raza",
+        email: "ahmed@example.com",
+      });
+    });
+  });
+
+  describe("createAuthToken (reissue)", () => {
+    it("deletes the previous token for the same user/purpose before creating the new one", async () => {
+      const tx = makeAuthTx();
+      mockPrisma.$transaction.mockImplementation(runTransaction(tx));
+
+      const repository = new AuthRepository();
+      await repository.createAuthToken({
+        userId: "user-1",
+        purpose: "EMAIL_VERIFICATION",
+        tokenHash: "c".repeat(64),
+        expiresAt: new Date(),
+      });
+
+      expect(tx.authToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId: "user-1", purpose: "EMAIL_VERIFICATION" },
+      });
+      expect(tx.authToken.create).toHaveBeenCalledTimes(1);
+      expect(tx.authToken.create).toHaveBeenCalledWith({
+        data: {
+          userId: "user-1",
+          purpose: "EMAIL_VERIFICATION",
+          tokenHash: "c".repeat(64),
+          expiresAt: expect.any(Date),
+        },
+      });
+    });
+  });
+
+  describe("consumeVerificationTokenAndVerifyUser", () => {
+    it("consumes the token and marks the user verified in one transaction", async () => {
+      const tx = makeAuthTx();
+      mockPrisma.$transaction.mockImplementation(runTransaction(tx));
+      const now = new Date();
+
+      const repository = new AuthRepository();
+      const user = await repository.consumeVerificationTokenAndVerifyUser("at-1", "user-1", now);
+
+      expect(tx.authToken.updateMany).toHaveBeenCalledWith({
+        where: { id: "at-1", consumedAt: null },
+        data: { consumedAt: now },
+      });
+      expect(tx.user.update).toHaveBeenCalledWith({
+        where: { id: "user-1" },
+        data: { emailVerifiedAt: now },
+      });
+      expect(user?.email).toBe("ahmed@example.com");
+    });
+
+    it("returns null without touching the user when the token was already consumed", async () => {
+      const tx = makeAuthTx();
+      tx.authToken.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.$transaction.mockImplementation(runTransaction(tx));
+
+      const repository = new AuthRepository();
+      const user = await repository.consumeVerificationTokenAndVerifyUser(
+        "at-1",
+        "user-1",
+        new Date(),
+      );
+
+      expect(user).toBeNull();
+      expect(tx.user.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("consumePasswordResetTokenAndUpdatePassword", () => {
+    it("consumes the token, replaces the password, and revokes all sessions in one transaction", async () => {
+      const tx = makeAuthTx();
+      mockPrisma.$transaction.mockImplementation(runTransaction(tx));
+      const now = new Date();
+
+      const repository = new AuthRepository();
+      const user = await repository.consumePasswordResetTokenAndUpdatePassword(
+        "at-1",
+        "user-1",
+        "new-hash",
+        now,
+      );
+
+      expect(tx.authToken.updateMany).toHaveBeenCalledWith({
+        where: { id: "at-1", consumedAt: null },
+        data: { consumedAt: now },
+      });
+      expect(tx.user.updateMany).toHaveBeenCalledWith({
+        where: { id: "user-1" },
+        data: { passwordHash: "new-hash" },
+      });
+      expect(tx.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: "user-1", revokedAt: null },
+        data: { revokedAt: now },
+      });
+      expect(tx.user.findUniqueOrThrow).toHaveBeenCalledWith({ where: { id: "user-1" } });
+      expect(user?.email).toBe("ahmed@example.com");
+    });
+
+    it("returns null without revoking sessions when the token was already consumed", async () => {
+      const tx = makeAuthTx();
+      tx.authToken.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.$transaction.mockImplementation(runTransaction(tx));
+
+      const repository = new AuthRepository();
+      const user = await repository.consumePasswordResetTokenAndUpdatePassword(
+        "at-1",
+        "user-1",
+        "new-hash",
+        new Date(),
+      );
+
+      expect(user).toBeNull();
+      expect(tx.user.updateMany).not.toHaveBeenCalled();
+      expect(tx.refreshToken.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("returns null without revoking sessions when the user no longer exists", async () => {
+      const tx = makeAuthTx();
+      tx.user.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.$transaction.mockImplementation(runTransaction(tx));
+
+      const repository = new AuthRepository();
+      const user = await repository.consumePasswordResetTokenAndUpdatePassword(
+        "at-1",
+        "user-1",
+        "new-hash",
+        new Date(),
+      );
+
+      expect(user).toBeNull();
+      expect(tx.refreshToken.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("findAuthTokenByHash", () => {
+    it("returns the token record for a matching hash", async () => {
+      mockPrisma.authToken.findUnique.mockResolvedValue({
+        id: "at-1",
+        userId: "user-1",
+        purpose: "EMAIL_VERIFICATION",
+        tokenHash: "a".repeat(64),
+        expiresAt: new Date(),
+        consumedAt: null,
+        createdAt: new Date(),
+      });
+
+      const repository = new AuthRepository();
+      const record = await repository.findAuthTokenByHash("a".repeat(64));
+
+      expect(mockPrisma.authToken.findUnique).toHaveBeenCalledWith({
+        where: { tokenHash: "a".repeat(64) },
+      });
+      expect(record?.purpose).toBe("EMAIL_VERIFICATION");
+      expect(record?.consumedAt).toBeNull();
+    });
+
+    it("returns null for a hash without a stored token", async () => {
+      mockPrisma.authToken.findUnique.mockResolvedValue(null);
+
+      const repository = new AuthRepository();
+      const record = await repository.findAuthTokenByHash("z".repeat(64));
+
+      expect(record).toBeNull();
+    });
   });
 });

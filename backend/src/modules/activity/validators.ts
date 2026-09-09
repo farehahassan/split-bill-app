@@ -1,12 +1,14 @@
 import { z } from "zod";
 
+import { idSchema } from "../../utils/idSchema.js";
+
 /**
  * Validates the `:id` route parameter of the group-scoped activity endpoint.
  * The group id is read from `req.params.id` because this route is mounted
  * inside the group router.
  */
 export const activityGroupParamsSchema = z.object({
-  id: z.string().trim().min(1, "Group ID is required"),
+  id: idSchema,
 });
 
 /**

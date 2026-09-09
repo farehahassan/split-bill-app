@@ -177,6 +177,56 @@ const expensesPaths: Record<string, PathItemObject> = {
         404: componentResponse("NotFound"),
       },
     },
+    patch: {
+      tags: [EXPENSES_TAG],
+      summary: "Update an expense",
+      description:
+        "Partially updates an expense. The requester must be a member of the expense's group. " +
+        "`EQUAL` splits are always recomputed from the participants, so changing the total or the payer also redistributes the splits; " +
+        "with `EXACT` splits the provided amounts must sum to the total (when participants are omitted the existing participant set and amounts are kept, " +
+        "and only the sum is re-validated against the new total). The currency is never editable. " +
+        "Records an `EXPENSE_UPDATED` activity event. Protected endpoint.",
+      operationId: "updateExpense",
+      parameters: [expenseIdPathParameter],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: ref("UpdateExpenseRequest"),
+            example: { amountMinorUnits: 1200 },
+          },
+        },
+      },
+      responses: {
+        200: jsonResponse(
+          "The updated expense with its splits.",
+          expenseData("Expense"),
+          { success: true, data: { expense: expenseExample } },
+        ),
+        400: componentResponse("BadRequest"),
+        401: componentResponse("Unauthorized"),
+        403: componentResponse("Forbidden"),
+        404: componentResponse("NotFound"),
+      },
+    },
+    delete: {
+      tags: [EXPENSES_TAG],
+      summary: "Delete an expense",
+      description:
+        "Deletes an expense and its splits. The requester must be a member of the expense's group. " +
+        "Records an `EXPENSE_DELETED` activity event with the deleted amount and currency so the feed stays an accurate audit trail. " +
+        "Protected endpoint.",
+      operationId: "deleteExpense",
+      parameters: [expenseIdPathParameter],
+      responses: {
+        204: {
+          description: "The expense was deleted and its activity event was recorded.",
+        },
+        401: componentResponse("Unauthorized"),
+        403: componentResponse("Forbidden"),
+        404: componentResponse("NotFound"),
+      },
+    },
   },
 };
 

@@ -32,25 +32,25 @@ import { prisma } from "../src/db/prisma.js";
 
 const mockPrisma = vi.mocked(prisma);
 
-const ownerId = "owner-1";
-const memberId = "member-1";
-const outsiderId = "outsider-1";
+const ownerId = "55555555-5555-4555-8555-555555555555";
+const memberId = "66666666-6666-4666-8666-666666666666";
+const outsiderId = "88888888-8888-4888-8888-888888888888";
 
-const group = { id: "group-1", name: "Trip to Naran", createdById: ownerId };
-const membership = { id: "membership-1", groupId: "group-1", userId: memberId };
+const group = { id: "11111111-1111-4111-8111-111111111111", name: "Trip to Naran", createdById: ownerId };
+const membership = { id: "membership-1", groupId: "11111111-1111-4111-8111-111111111111", userId: memberId };
 
 function storedEvent(overrides: Record<string, unknown> = {}) {
   return {
     id: "event-1",
-    groupId: "group-1",
-    userId: "member-1",
+    groupId: "11111111-1111-4111-8111-111111111111",
+    userId: memberId,
     type: "EXPENSE_ADDED",
     message: "added the expense \"Dinner\"",
     amountMinorUnits: 1000n,
     currencyCode: "PKR",
     occurredAt: new Date("2026-01-02T00:00:00Z"),
     createdAt: new Date("2026-01-02T00:00:00Z"),
-    user: { id: "member-1", name: "Member", email: "member@example.com" },
+    user: { id: memberId, name: "Member", email: "member@example.com" },
     ...overrides,
   };
 }
@@ -75,7 +75,7 @@ describe("Activity API", () => {
       mockPrisma.activityEvent.count.mockResolvedValue(1);
 
       const res = await request(app)
-        .get("/api/v1/groups/group-1/activity?page=1&limit=20")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity?page=1&limit=20")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.OK);
@@ -87,7 +87,7 @@ describe("Activity API", () => {
     });
 
     it("returns 401 without authentication", async () => {
-      const res = await request(app).get("/api/v1/groups/group-1/activity");
+      const res = await request(app).get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity");
 
       expect(res.status).toBe(HTTP_STATUSES.UNAUTHORIZED);
     });
@@ -97,7 +97,7 @@ describe("Activity API", () => {
       mockPrisma.groupMember.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
-        .get("/api/v1/groups/group-1/activity")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity")
         .set("Authorization", `Bearer ${signToken(outsiderId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.FORBIDDEN);
@@ -108,7 +108,7 @@ describe("Activity API", () => {
       mockPrisma.group.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
-        .get("/api/v1/groups/missing/activity")
+        .get("/api/v1/groups/00000000-0000-4000-8000-000000000099/activity")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.NOT_FOUND);
@@ -131,7 +131,7 @@ describe("Activity API", () => {
       mockPrisma.activityEvent.count.mockResolvedValue(0);
 
       const res = await request(app)
-        .get("/api/v1/groups/group-1/activity")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.OK);
@@ -143,7 +143,7 @@ describe("Activity API", () => {
 
     it("returns 400 for an invalid page (zero)", async () => {
       const res = await request(app)
-        .get("/api/v1/groups/group-1/activity?page=0")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity?page=0")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
@@ -151,7 +151,7 @@ describe("Activity API", () => {
 
     it("returns 400 for an invalid page (non-numeric)", async () => {
       const res = await request(app)
-        .get("/api/v1/groups/group-1/activity?page=abc")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity?page=abc")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
@@ -159,7 +159,7 @@ describe("Activity API", () => {
 
     it("returns 400 for an invalid page (fraction)", async () => {
       const res = await request(app)
-        .get("/api/v1/groups/group-1/activity?page=1.5")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity?page=1.5")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
@@ -167,7 +167,7 @@ describe("Activity API", () => {
 
     it("returns 400 for an invalid limit (zero)", async () => {
       const res = await request(app)
-        .get("/api/v1/groups/group-1/activity?limit=0")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity?limit=0")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
@@ -175,7 +175,7 @@ describe("Activity API", () => {
 
     it("returns 400 for an invalid limit (negative)", async () => {
       const res = await request(app)
-        .get("/api/v1/groups/group-1/activity?limit=-5")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity?limit=-5")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
@@ -183,7 +183,7 @@ describe("Activity API", () => {
 
     it("returns 400 for an excessive limit", async () => {
       const res = await request(app)
-        .get("/api/v1/groups/group-1/activity?limit=51")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity?limit=51")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
@@ -191,7 +191,7 @@ describe("Activity API", () => {
 
     it("rejects unknown query parameters", async () => {
       const res = await request(app)
-        .get("/api/v1/groups/group-1/activity?foo=bar")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity?foo=bar")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
@@ -204,7 +204,7 @@ describe("Activity API", () => {
       mockPrisma.activityEvent.count.mockResolvedValue(0);
 
       const res = await request(app)
-        .get("/api/v1/groups/group-1/activity")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.OK);
@@ -219,14 +219,14 @@ describe("Activity API", () => {
       mockPrisma.activityEvent.count.mockResolvedValue(0);
 
       await request(app)
-        .get("/api/v1/groups/group-1/activity?page=2&limit=10")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity?page=2&limit=10")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(mockPrisma.activityEvent.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ skip: 10, take: 10 }),
       );
       expect(mockPrisma.activityEvent.count).toHaveBeenCalledWith({
-        where: { groupId: "group-1" },
+        where: { groupId: "11111111-1111-4111-8111-111111111111" },
       });
     });
 
@@ -237,11 +237,11 @@ describe("Activity API", () => {
       mockPrisma.activityEvent.count.mockResolvedValue(0);
 
       await request(app)
-        .get("/api/v1/groups/group-1/activity")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(mockPrisma.activityEvent.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { groupId: "group-1" } }),
+        expect.objectContaining({ where: { groupId: "11111111-1111-4111-8111-111111111111" } }),
       );
     });
 
@@ -252,7 +252,7 @@ describe("Activity API", () => {
       mockPrisma.activityEvent.count.mockResolvedValue(0);
 
       await request(app)
-        .get("/api/v1/groups/group-1/activity")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(mockPrisma.activityEvent.findMany).toHaveBeenCalledWith(
@@ -269,7 +269,7 @@ describe("Activity API", () => {
       mockPrisma.activityEvent.count.mockResolvedValue(1);
 
       const res = await request(app)
-        .get("/api/v1/groups/group-1/activity")
+        .get("/api/v1/groups/11111111-1111-4111-8111-111111111111/activity")
         .set("Authorization", `Bearer ${signToken(memberId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.OK);

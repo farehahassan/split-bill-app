@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { idSchema } from "../../utils/idSchema.js";
+
 export const createGroupBodySchema = z
   .object({
     name: z.string().trim().min(1, "Group name is required").max(100, "Group name is too long"),
@@ -13,18 +15,18 @@ export const updateGroupBodySchema = z
   .strict();
 
 export const groupParamsSchema = z.object({
-  id: z.string().min(1, "Group ID is required"),
+  id: idSchema,
 });
 
 export const addMemberBodySchema = z
   .object({
-    userId: z.string().min(1, "User ID is required"),
+    userId: idSchema,
   })
   .strict();
 
 export const memberParamsSchema = z.object({
-  id: z.string().min(1, "Group ID is required"),
-  memberId: z.string().min(1, "Member ID is required"),
+  id: idSchema,
+  memberId: idSchema,
 });
 
 export type CreateGroupBody = z.infer<typeof createGroupBodySchema>;
