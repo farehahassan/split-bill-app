@@ -32,22 +32,18 @@ const groupsPaths: Record<string, PathItemObject> = {
         },
       },
       responses: {
-        201: jsonResponse(
-          "The group was created.",
-          groupData("Group"),
-          {
-            success: true,
-            data: {
-              group: {
-                id: "550e8400-e29b-41d4-a716-446655440000",
-                name: "Trip to Naran",
-                createdById: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-                createdAt: "2026-01-15T10:30:00.000Z",
-                updatedAt: "2026-01-15T10:30:00.000Z",
-              },
+        201: jsonResponse("The group was created.", groupData("Group"), {
+          success: true,
+          data: {
+            group: {
+              id: "550e8400-e29b-41d4-a716-446655440000",
+              name: "Trip to Naran",
+              createdById: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+              createdAt: "2026-01-15T10:30:00.000Z",
+              updatedAt: "2026-01-15T10:30:00.000Z",
             },
           },
-        ),
+        }),
         400: componentResponse("BadRequest"),
         401: componentResponse("Unauthorized"),
       },
@@ -99,34 +95,30 @@ const groupsPaths: Record<string, PathItemObject> = {
       operationId: "getGroup",
       parameters: [groupIdPathParameter],
       responses: {
-        200: jsonResponse(
-          "The group with its members.",
-          groupData("GroupWithMembers"),
-          {
-            success: true,
-            data: {
-              group: {
-                id: "550e8400-e29b-41d4-a716-446655440000",
-                name: "Trip to Naran",
-                createdById: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-                createdAt: "2026-01-15T10:30:00.000Z",
-                updatedAt: "2026-01-15T10:30:00.000Z",
-                members: [
-                  {
-                    id: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-                    name: "Ahmed Raza",
-                    email: "ahmed@example.com",
-                  },
-                  {
-                    id: "b2d9c1e0-1a2b-4c3d-9e4f-5a6b7c8d9e0f",
-                    name: "Sana Malik",
-                    email: "sana@example.com",
-                  },
-                ],
-              },
+        200: jsonResponse("The group with its members.", groupData("GroupWithMembers"), {
+          success: true,
+          data: {
+            group: {
+              id: "550e8400-e29b-41d4-a716-446655440000",
+              name: "Trip to Naran",
+              createdById: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+              createdAt: "2026-01-15T10:30:00.000Z",
+              updatedAt: "2026-01-15T10:30:00.000Z",
+              members: [
+                {
+                  id: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+                  name: "Ahmed Raza",
+                  email: "ahmed@example.com",
+                },
+                {
+                  id: "b2d9c1e0-1a2b-4c3d-9e4f-5a6b7c8d9e0f",
+                  name: "Sana Malik",
+                  email: "sana@example.com",
+                },
+              ],
             },
           },
-        ),
+        }),
         401: componentResponse("Unauthorized"),
         403: componentResponse("Forbidden"),
         404: componentResponse("NotFound"),
@@ -149,22 +141,18 @@ const groupsPaths: Record<string, PathItemObject> = {
         },
       },
       responses: {
-        200: jsonResponse(
-          "The group was updated.",
-          groupData("Group"),
-          {
-            success: true,
-            data: {
-              group: {
-                id: "550e8400-e29b-41d4-a716-446655440000",
-                name: "Trip to Hunza",
-                createdById: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-                createdAt: "2026-01-15T10:30:00.000Z",
-                updatedAt: "2026-01-16T09:00:00.000Z",
-              },
+        200: jsonResponse("The group was updated.", groupData("Group"), {
+          success: true,
+          data: {
+            group: {
+              id: "550e8400-e29b-41d4-a716-446655440000",
+              name: "Trip to Hunza",
+              createdById: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+              createdAt: "2026-01-15T10:30:00.000Z",
+              updatedAt: "2026-01-16T09:00:00.000Z",
             },
           },
-        ),
+        }),
         400: componentResponse("BadRequest"),
         401: componentResponse("Unauthorized"),
         403: componentResponse("Forbidden"),

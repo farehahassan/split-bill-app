@@ -15,21 +15,14 @@ AppFailure mapApiException(Object error, [StackTrace? stackTrace]) {
     final statusCode = error.response?.statusCode;
     if (statusCode != null) {
       return switch (statusCode) {
-        400 => ValidationFailure(
-          _messageFrom(error, 'The request was invalid.'),
-        ),
+        400 || 409 || 422 => _validationFrom(error),
         401 => const UnauthorizedFailure(),
         403 => const UnauthorizedFailure(),
         404 => const NotFoundFailure(),
-        409 => ValidationFailure(
-          _messageFrom(error, 'This conflicts with existing data.'),
-        ),
-        422 => ValidationFailure(
-          _messageFrom(error, 'Please check the information you entered.'),
-        ),
         429 => const ServerFailure(
           'Too many requests. Please try again later.',
         ),
+        503 => ServiceUnavailableFailure(_messageFrom(error)),
         _ when statusCode >= 500 => ServerFailure(
           _messageFrom(
             error,
@@ -57,9 +50,38 @@ AppFailure mapApiException(Object error, [StackTrace? stackTrace]) {
   return const UnknownFailure();
 }
 
+/// Returns a user-safe, non-technical message for [error] regardless of type.
+///
+/// Guards against leaking internal details (e.g. raw exception/dio internals)
+/// to the UI; always yields a human-readable sentence.
+String appErrorMessage(Object error) {
+  if (error is AppFailure) return error.message;
+  if (error is DioException) return mapApiException(error).message;
+  return 'Something went wrong. Please try again.';
+}
+
+/// Builds a [ValidationFailure] that keeps the backend's structured field
+/// errors alongside a safe summary message.
+AppFailure _validationFrom(DioException error) {
+  final data = error.response?.data;
+  final List<ApiFieldError> fieldErrors = [];
+  if (data is Map && data['errors'] is List) {
+    for (final entry in data['errors'] as List) {
+      if (entry is Map) {
+        final field = entry['field'];
+        final message = entry['message'];
+        if (field is String && message is String) {
+          fieldErrors.add(ApiFieldError(field: field, message: message));
+        }
+      }
+    }
+  }
+  return FieldValidationFailure(_messageFrom(error), fieldErrors);
+}
+
 /// Uses the server-provided `message` only when it is a clean string;
 /// otherwise falls back to a safe default so raw internals never leak.
-String _messageFrom(DioException error, String fallback) {
+String _messageFrom(DioException error, [String fallback = 'Please check the information you entered.']) {
   final data = error.response?.data;
   if (data is Map && data['message'] is String) {
     return data['message'] as String;

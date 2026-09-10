@@ -79,9 +79,9 @@ describe("JobQueue.enqueue", () => {
     const redis = new FakeRedis();
     const queue = makeQueue(redis);
 
-    await expect(
-      queue.enqueue("NOT_A_REAL_JOB" as never, { groupId: "group-1" }),
-    ).rejects.toThrow("Unknown job type");
+    await expect(queue.enqueue("NOT_A_REAL_JOB" as never, { groupId: "group-1" })).rejects.toThrow(
+      "Unknown job type",
+    );
     expect(zsetMemberCount(redis)).toBe(0);
   });
 
@@ -187,7 +187,13 @@ describe("JobQueue.claimNext", () => {
 
     const second = await queue.enqueue(TYPE, { groupId: "group-2" });
     redis.store.set(`job:data:${second.jobId}`, {
-      value: JSON.stringify({ jobId: second.jobId, type: "SOME_OTHER_TYPE", payload: {}, attempts: 0, createdAt: new Date().toISOString() }),
+      value: JSON.stringify({
+        jobId: second.jobId,
+        type: "SOME_OTHER_TYPE",
+        payload: {},
+        attempts: 0,
+        createdAt: new Date().toISOString(),
+      }),
       expiresAt: Date.now() + 60_000,
     });
     await expect(queue.claimNext(TYPE)).resolves.toMatchObject({
@@ -255,7 +261,10 @@ describe("JobQueue completion and retry", () => {
   });
 
   it("backoffFor() grows exponentially and never exceeds the cap", () => {
-    const queue = new JobQueue(new FakeRedis(), makeConfig({ baseBackoffMs: 100, maxBackoffMs: 500 }));
+    const queue = new JobQueue(
+      new FakeRedis(),
+      makeConfig({ baseBackoffMs: 100, maxBackoffMs: 500 }),
+    );
 
     expect(queue.backoffFor(1)).toBe(100);
     expect(queue.backoffFor(2)).toBe(200);

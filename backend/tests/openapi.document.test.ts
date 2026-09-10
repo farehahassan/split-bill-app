@@ -66,7 +66,9 @@ const IMPORTANT_SCHEMAS = [
   "ErrorBody",
 ];
 
-function operations(document: OpenApiDocument): Array<{ operationId: string; operation: OperationObject }> {
+function operations(
+  document: OpenApiDocument,
+): Array<{ operationId: string; operation: OperationObject }> {
   const result: Array<{ operationId: string; operation: OperationObject }> = [];
   for (const pathItem of Object.values(document.paths)) {
     for (const method of ["get", "post", "put", "delete", "patch"] as const) {
@@ -145,7 +147,8 @@ describe("OpenAPI document", () => {
         expect(operation.security, `${operationId} must be public`).toEqual([]);
       } else {
         expect(
-          operation.security === undefined || operation.security.every((req) => "bearerAuth" in req),
+          operation.security === undefined ||
+            operation.security.every((req) => "bearerAuth" in req),
           `${operationId} must require bearerAuth`,
         ).toBe(true);
       }
@@ -171,9 +174,14 @@ describe("OpenAPI document", () => {
 
     for (const { operationId, operation } of allOperations) {
       expect(operation.tags?.length, `${operationId} must declare a tag`).toBeGreaterThan(0);
-      expect(Object.keys(operation.responses).length, `${operationId} must declare responses`).toBeGreaterThan(0);
+      expect(
+        Object.keys(operation.responses).length,
+        `${operationId} must declare responses`,
+      ).toBeGreaterThan(0);
       for (const status of Object.keys(operation.responses)) {
-        expect(status, `${operationId} response ${status} must be a numeric status`).toMatch(/^\d{3}$/);
+        expect(status, `${operationId} response ${status} must be a numeric status`).toMatch(
+          /^\d{3}$/,
+        );
       }
     }
   });

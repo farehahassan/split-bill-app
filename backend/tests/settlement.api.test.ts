@@ -59,7 +59,10 @@ const validCreateBody = {
   amountMinorUnits: 500,
 };
 
-function hashOf(body: { payerId: string; payeeId: string; amountMinorUnits: number }, id = "group-1") {
+function hashOf(
+  body: { payerId: string; payeeId: string; amountMinorUnits: number },
+  id = "group-1",
+) {
   return createRequestHash({
     groupId: id,
     payerId: body.payerId,
@@ -237,7 +240,7 @@ describe("Settlements API", () => {
     it("creates a settlement, claims the idempotency key, and returns 201", async () => {
       mockPrisma.group.findUnique.mockResolvedValue(group);
       mockPrisma.groupMember.findMany.mockResolvedValue(memberUsers());
-const tx = freshCreateTx();
+      const tx = freshCreateTx();
       mockPrisma.$transaction.mockImplementation(runTransaction(tx));
 
       const res = await request(app)
@@ -468,9 +471,9 @@ const tx = freshCreateTx();
       mockPrisma.$transaction.mockImplementation(runTransaction(tx));
       tx.settlement.findUnique.mockResolvedValue(storedSettlement());
 
-      tx.idempotencyRecord.findUnique.mockResolvedValueOnce(null).mockResolvedValue(
-        idempotencyRecordRow(),
-      );
+      tx.idempotencyRecord.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue(idempotencyRecordRow());
 
       const first = await request(app)
         .post("/api/v1/groups/group-1/settlements")
@@ -523,9 +526,7 @@ const tx = freshCreateTx();
       const tx = freshCreateTx();
       mockPrisma.$transaction.mockImplementation(runTransaction(tx));
 
-      tx.idempotencyRecord.findUnique.mockResolvedValue(
-        idempotencyRecordRow({ userId: bobId }),
-      );
+      tx.idempotencyRecord.findUnique.mockResolvedValue(idempotencyRecordRow({ userId: bobId }));
 
       const res = await request(app)
         .post("/api/v1/groups/group-1/settlements")

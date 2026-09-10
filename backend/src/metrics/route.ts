@@ -47,7 +47,7 @@ export function resolveRouteTemplate(req: Request): string {
   const app = req.app as ExpressApp | undefined;
   const matchedPrefix = findMountPrefix(app?._router?.stack, route, "");
 
-  let template = `${matchedPrefix ?? (req.baseUrl ?? "")}${route.path}`;
+  let template = `${matchedPrefix ?? req.baseUrl ?? ""}${route.path}`;
   if (template.length > 1 && template.endsWith("/")) {
     template = template.slice(0, -1);
   }

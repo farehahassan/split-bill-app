@@ -1,18 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../app/di/injection.dart';
+import '../../../../core/network/api_exception_mapper.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/ui/entrance.dart';
 import '../../../../core/ui/responsive_content.dart';
 import '../../../../core/ui/pressable_scale.dart';
-import '../../../../mock/mock_data.dart';
+import '../../../../core/utils/money.dart';
+import '../../../auth/logic/auth_controller.dart';
+import '../../../groups/data/repositories/groups_repository.dart';
+import '../../../settlements/data/models/balance.dart';
+import '../../../settlements/data/repositories/settlements_repository.dart';
 import '../../../shell/presentation/widgets/hisab_header.dart';
 import '../widgets/setting_row.dart';
 import '../widgets/stat_card.dart';
 
-/// Profile screen: user info, stats and settings.
+/// Profile screen: user info from the authenticated session, live stats for
+/// groups and balance totals, settings (local) and a real sign-out action.
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
@@ -23,8 +30,62 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   bool _notifications = true;
 
+  int _groupCount = 0;
+  int _owesMinorUnits = 0;
+  int _owedMinorUnits = 0;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final groups = await getIt<GroupsRepository>().getGroups();
+      final currentUserId = getIt<AuthController>().user?.id ?? '';
+      var owes = 0;
+      var owed = 0;
+      for (final group in groups) {
+        try {
+          final List<GroupBalance> balances =
+              await getIt<SettlementsRepository>().getGroupBalances(group.id);
+          final mine = balances
+              .where((b) => b.userId == currentUserId)
+              .fold<int>(0, (sum, b) => sum + b.amountMinorUnits);
+          if (mine < 0) owes += mine.abs();
+          if (mine > 0) owed += mine;
+        } catch (_) {
+          // Balance stats are best-effort.
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _groupCount = groups.length;
+        _owesMinorUnits = owes;
+        _owedMinorUnits = owed;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(appErrorMessage(error))));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _signOut() async {
+    await getIt<AuthController>().logout();
+    if (!mounted) return;
+    context.go('/sign-in');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final user = getIt<AuthController>().user;
     return ResponsiveContent(
       child: ListView(
         padding: const EdgeInsets.only(bottom: 28),
@@ -60,7 +121,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ],
                       ),
                       child: Text(
-                        currentUser.initials,
+                        user?.initials ?? '?',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 24,
@@ -73,9 +134,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(currentUser.name, style: AppTextStyles.title),
+                          Text(user?.name ?? 'Hisab User', style: AppTextStyles.title),
                           const SizedBox(height: 2),
-                          Text(currentUser.email, style: AppTextStyles.caption),
+                          Text(user?.email ?? '', style: AppTextStyles.caption),
                         ],
                       ),
                     ),
@@ -86,16 +147,16 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const SizedBox(height: AppSpacing.medium),
 
-          // Stats row.
+          // Stats row (live).
           Entrance(
             delay: const Duration(milliseconds: 100),
-            child: const Row(
+            child: Row(
               children: [
-                StatCard(value: '3', label: 'Groups'),
-                SizedBox(width: AppSpacing.small),
-                StatCard(value: '6', label: 'Friends'),
-                SizedBox(width: AppSpacing.small),
-                StatCard(value: '12', label: 'Settled'),
+                StatCard(value: groupCountLabel, label: 'Groups'),
+                const SizedBox(width: AppSpacing.small),
+                StatCard(value: _loading ? '-' : _owsShort, label: 'You owe'),
+                const SizedBox(width: AppSpacing.small),
+                StatCard(value: _loading ? '-' : _owedShort, label: 'Owed to you'),
               ],
             ),
           ),
@@ -135,15 +196,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     label: 'Language',
                     trailing: Text('English', style: AppTextStyles.caption),
                   ),
-                  const Divider(),
-                  const SettingRow(
-                    icon: Icons.help_outline,
-                    label: 'Help & Support',
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -154,7 +206,7 @@ class _ProfilePageState extends State<ProfilePage> {
           Entrance(
             delay: const Duration(milliseconds: 240),
             child: PressableScale(
-              onTap: () => context.go('/sign-in'),
+              onTap: _signOut,
               child: Container(
                 height: 52,
                 alignment: Alignment.center,
@@ -183,5 +235,15 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
     );
+  }
+
+  String get groupCountLabel => _loading ? '-' : '$_groupCount';
+
+  String get _owsShort => _shortMoney(_owesMinorUnits);
+  String get _owedShort => _shortMoney(_owedMinorUnits);
+
+  static String _shortMoney(int minorUnits) {
+    // Show whole PKR without decimals, e.g. "1,250".
+    return Money(minorUnits).format().replaceAll('PKR ', '').trim();
   }
 }

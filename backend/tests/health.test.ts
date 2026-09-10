@@ -27,7 +27,10 @@ describe("Health readiness", () => {
     const res = await request(app).get("/health/ready");
 
     expect(res.status).toBe(HTTP_STATUSES.OK);
-    expect(res.body).toEqual({ status: "ready" });
+    expect(res.body).toEqual({
+      status: "ready",
+      checks: { postgres: true, redis: true },
+    });
   });
 
   it("GET /health/ready returns 503 when the database is unavailable", async () => {
@@ -39,6 +42,7 @@ describe("Health readiness", () => {
     expect(res.body).toEqual({
       status: "unavailable",
       message: "Service is not ready yet.",
+      checks: { postgres: false, redis: true },
     });
   });
 });

@@ -5,18 +5,18 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/ui/animated_money_text.dart';
 import '../../../../core/ui/app_button.dart';
-import 'friend_entry.dart';
+import '../../../../core/utils/money.dart';
 
-/// Bottom sheet confirming a settlement with a friend. Pops with `true` when
-/// the user confirms.
+/// Bottom sheet confirming a settlement to a payee. Pops with `true` when the
+/// user confirms for the displayed amount.
 class SettleSheet extends StatelessWidget {
-  const SettleSheet({super.key, required this.entry});
+  const SettleSheet({super.key, required this.payeeName, required this.amount});
 
-  final FriendEntry entry;
+  final String payeeName;
+  final Money amount;
 
   @override
   Widget build(BuildContext context) {
-    final amount = entry.friend.youOwe!;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.large,
@@ -28,7 +28,7 @@ class SettleSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Settle with ${entry.friend.name}', style: AppTextStyles.title),
+          Text('Settle with $payeeName', style: AppTextStyles.title),
           const SizedBox(height: 4),
           Text(
             'You owe ${amount.format()}',
