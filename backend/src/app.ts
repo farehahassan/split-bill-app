@@ -41,12 +41,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     cors({
       origin: env.CORS_ORIGIN,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: [
-        "Content-Type",
-        "Authorization",
-        "Idempotency-Key",
-        "X-Request-Id",
-      ],
+      allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Request-Id"],
     }),
   );
 

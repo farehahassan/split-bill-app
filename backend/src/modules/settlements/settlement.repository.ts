@@ -8,10 +8,7 @@ import {
 } from "../idempotency/idempotency.constants.js";
 import { reconcileIdempotencyRecord, type IdempotencyContext } from "../idempotency/reconcile.js";
 import type { ExpenseForBalance, SettlementForBalance } from "./balance.util.js";
-import {
-  createActivityEvent,
-  type ActivityEventInput,
-} from "../activity/activity.repository.js";
+import { createActivityEvent, type ActivityEventInput } from "../activity/activity.repository.js";
 
 export interface SafeUser {
   id: string;
@@ -132,7 +129,7 @@ export class SettlementRepository {
     return settlements;
   }
 
-/**
+  /**
    * Creates a settlement and its settlement-added activity event atomically,
    * protected against duplicates by the idempotency record.
    */

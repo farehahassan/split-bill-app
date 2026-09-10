@@ -1720,3 +1720,59 @@ data) and reads no external state, so it is safe for a well-known scrape target.
 For production behind a shared edge, either restrict the route at the
 gateway/proxy or set `METRICS_ENABLED=false`; the environment table documents
 both options.
+
+## Continuous Integration
+
+A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) automatically validates
+every pull request and push to `master`.
+
+### What CI validates
+
+| Check | Command | Fails CI on |
+|---|---|---|
+| Dependency install | `npm ci` | Install failure |
+| Prisma client generation | `npx prisma generate` | Generation failure |
+| Prisma schema validation | `npm run db:validate` | Invalid schema |
+| ESLint | `npm run lint` | Lint errors |
+| Prettier formatting | `npm run format:check` | Formatting drift |
+| TypeScript type check | `npm run typecheck` | Type errors |
+| Unit tests | `npm test` | Test failures |
+| Database migrations | `npm run db:migrate` | Migration failure |
+| Security audit | `npm audit --audit-level=moderate` | Moderate+ vulnerabilities |
+| Production build | `npm run build` | Compilation errors |
+
+### Infrastructure services
+
+CI spins up disposable PostgreSQL 16 and Redis 7 containers for integration-test
+readiness. The current test suite uses in-memory fakes (no live connections), but
+the services are available for future integration tests.
+
+### When CI runs
+
+- On every **pull request** targeting `master`
+- On every **push** to `master`
+
+### Running equivalent checks locally
+
+```bash
+cd backend
+npm ci
+npx prisma generate
+npm run db:validate
+npm run lint
+npm run format:check
+npm run typecheck
+npm test
+npm audit --audit-level=moderate
+npm run build
+```
+
+### Troubleshooting
+
+- **Lint failures:** run `npm run lint:fix` to auto-fix.
+- **Format failures:** run `npm run format` to auto-format.
+- **Type errors:** run `npm run typecheck` and fix the reported issues.
+- **Test failures:** run `npm test` locally to reproduce. All tests use mocked
+  Prisma/Redis — no external services are required.
+- **Audit failures:** review `npm audit` output. Moderate+ advisories must be
+  resolved or explicitly acknowledged.

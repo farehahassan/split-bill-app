@@ -27,7 +27,12 @@ function storedRecord(overrides: Partial<StoredIdempotencyRecord> = {}): StoredI
 
 describe("createRequestHash", () => {
   it("produces the same hash for the same payload", () => {
-    const payload = { groupId: "group-1", payerId: "bob-1", payeeId: "alice-1", amountMinorUnits: 500 };
+    const payload = {
+      groupId: "group-1",
+      payerId: "bob-1",
+      payeeId: "alice-1",
+      amountMinorUnits: 500,
+    };
     expect(createRequestHash(payload)).toBe(createRequestHash(payload));
   });
 

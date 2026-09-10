@@ -37,9 +37,7 @@ const safeGroupSelect = {
  * recompute idempotent: running it once or N times produces the same row.
  */
 export class SummaryRepository {
-  findGroupById(
-    id: string,
-  ): Promise<{ id: string; name: string; createdById: string } | null> {
+  findGroupById(id: string): Promise<{ id: string; name: string; createdById: string } | null> {
     return prisma.group.findUnique({
       where: { id },
       select: safeGroupSelect,

@@ -106,15 +106,11 @@ describe("Activity creation on domain operations", () => {
     const service = new GroupService(groupRepository);
     await service.addGroupMember("owner-1", "group-1", "member-1");
 
-    expect(groupRepository.addGroupMember).toHaveBeenCalledWith(
-      "group-1",
-      "member-1",
-      {
-        userId: "owner-1",
-        type: "MEMBER_ADDED",
-        message: "added Sana to the group",
-      },
-    );
+    expect(groupRepository.addGroupMember).toHaveBeenCalledWith("group-1", "member-1", {
+      userId: "owner-1",
+      type: "MEMBER_ADDED",
+      message: "added Sana to the group",
+    });
   });
 
   it("records an EXPENSE_ADDED event with the authenticated requester as actor", async () => {
