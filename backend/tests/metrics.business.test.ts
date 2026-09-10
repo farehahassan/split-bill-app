@@ -245,9 +245,11 @@ describe("activity_events_created_total", () => {
 
     await createActivityEvent(tx, eventInput);
 
-    expect(metrics.counterValue(METRIC.activityEventsCreatedTotal, {
-      [METRIC_LABEL.activityType]: "EXPENSE_ADDED",
-    })).toBe(1);
+    expect(
+      metrics.counterValue(METRIC.activityEventsCreatedTotal, {
+        [METRIC_LABEL.activityType]: "EXPENSE_ADDED",
+      }),
+    ).toBe(1);
   });
 
   it("does not count when the event write fails", async () => {
@@ -256,9 +258,11 @@ describe("activity_events_created_total", () => {
 
     await expect(createActivityEvent(tx, eventInput)).rejects.toThrow("tx rollback");
 
-    expect(metrics.counterValue(METRIC.activityEventsCreatedTotal, {
-      [METRIC_LABEL.activityType]: "EXPENSE_ADDED",
-    })).toBe(0);
+    expect(
+      metrics.counterValue(METRIC.activityEventsCreatedTotal, {
+        [METRIC_LABEL.activityType]: "EXPENSE_ADDED",
+      }),
+    ).toBe(0);
   });
 });
 

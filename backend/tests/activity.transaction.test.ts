@@ -116,9 +116,7 @@ function makeTx(): TxStub {
   };
 }
 
-function runTransaction<T>(
-  tx: TxStub,
-): (callback: (t: TxStub) => Promise<T>) => Promise<T> {
+function runTransaction<T>(tx: TxStub): (callback: (t: TxStub) => Promise<T>) => Promise<T> {
   return async (callback: (t: TxStub) => Promise<T>) => callback(tx);
 }
 
@@ -132,11 +130,15 @@ describe("Group activity transaction consistency", () => {
     mockPrisma.$transaction.mockImplementation(runTransaction(tx));
 
     const repository = new GroupRepository();
-    const result = await repository.createGroupWithOwner("owner-1", { name: "Trip to Naran" }, {
-      userId: "owner-1",
-      type: "GROUP_CREATED",
-      message: "created the group",
-    });
+    const result = await repository.createGroupWithOwner(
+      "owner-1",
+      { name: "Trip to Naran" },
+      {
+        userId: "owner-1",
+        type: "GROUP_CREATED",
+        message: "created the group",
+      },
+    );
 
     expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.group.create).toHaveBeenCalledTimes(1);
@@ -191,11 +193,15 @@ describe("Group activity transaction consistency", () => {
 
     const repository = new GroupRepository();
     await expect(
-      repository.createGroupWithOwner("owner-1", { name: "Trip to Naran" }, {
-        userId: "owner-1",
-        type: "GROUP_CREATED",
-        message: "created the group",
-      }),
+      repository.createGroupWithOwner(
+        "owner-1",
+        { name: "Trip to Naran" },
+        {
+          userId: "owner-1",
+          type: "GROUP_CREATED",
+          message: "created the group",
+        },
+      ),
     ).rejects.toThrow("boom");
     expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
   });

@@ -1,9 +1,6 @@
 import type { Expense, ExpenseSplit, Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
-import {
-  createActivityEvent,
-  type ActivityEventInput,
-} from "../activity/activity.repository.js";
+import { createActivityEvent, type ActivityEventInput } from "../activity/activity.repository.js";
 
 export interface ExpenseCreateSplit {
   userId: string;

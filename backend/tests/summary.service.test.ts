@@ -187,9 +187,7 @@ describe("SummaryService.enqueueGroupSummaryRecompute", () => {
 
     const service = await makeService();
 
-    await expect(
-      service.enqueueGroupSummaryRecompute("alice-1", "group-1"),
-    ).rejects.toMatchObject({
+    await expect(service.enqueueGroupSummaryRecompute("alice-1", "group-1")).rejects.toMatchObject({
       code: APP_ERRORS.JOB_ENQUEUE_FAILED,
       statusCode: HTTP_STATUSES.INTERNAL_SERVER_ERROR,
     });

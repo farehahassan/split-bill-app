@@ -3,9 +3,7 @@ import type { Request } from "express";
 
 import { resolveRouteTemplate, UNMATCHED_ROUTE } from "../src/metrics/route.js";
 
-function makeReq(
-  overrides: Partial<{ baseUrl: string; routePath: string }> = {},
-): Request {
+function makeReq(overrides: Partial<{ baseUrl: string; routePath: string }> = {}): Request {
   const req = {} as Request;
   if (overrides.baseUrl !== undefined) req.baseUrl = overrides.baseUrl;
   if (overrides.routePath !== undefined) {

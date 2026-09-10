@@ -6,10 +6,7 @@ import {
   NotFoundError,
 } from "../../errors/app.error.js";
 import { loadEnv } from "../../config/env.js";
-import {
-  DistributedLock,
-  DistributedLockConflictError,
-} from "../../redis/distributedLock.js";
+import { DistributedLock, DistributedLockConflictError } from "../../redis/distributedLock.js";
 import { getRedis } from "../../redis/redisClient.js";
 import { METRIC, metrics } from "../../metrics/registry.js";
 import type { IdempotencyContext } from "../idempotency/reconcile.js";

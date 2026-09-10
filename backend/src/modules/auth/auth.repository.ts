@@ -85,10 +85,7 @@ export class AuthRepository {
    * replacement in the same transaction. Returns the new record, or `null` when
    * the old token was already revoked.
    */
-  rotateRefreshToken(
-    oldId: string,
-    data: CreateRefreshTokenData,
-  ): Promise<RefreshToken | null> {
+  rotateRefreshToken(oldId: string, data: CreateRefreshTokenData): Promise<RefreshToken | null> {
     return prisma.$transaction(async (tx) => {
       const revoked = await tx.refreshToken.updateMany({
         where: { id: oldId, revokedAt: null },
