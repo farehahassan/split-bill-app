@@ -9,7 +9,7 @@ const healthPaths: Record<string, PathItemObject> = {
       tags: [HEALTH_TAG],
       summary: "Liveness probe",
       description:
-        "Returns HTTP 200 with `{ \"status\": \"ok\" }` whenever the process is running. " +
+        'Returns HTTP 200 with `{ "status": "ok" }` whenever the process is running. ' +
         "Performs no dependency checks and requires no authentication.",
       operationId: "getLiveness",
       security: [],
@@ -27,8 +27,8 @@ const healthPaths: Record<string, PathItemObject> = {
       tags: [HEALTH_TAG],
       summary: "Readiness probe",
       description:
-        "Verifies that the PostgreSQL database is reachable. Returns 200 with `{ \"status\": \"ready\" }` " +
-        "when the database responds, or 503 with `{ \"status\": \"unavailable\" }` when it does not. " +
+        'Verifies that the PostgreSQL database is reachable. Returns 200 with `{ "status": "ready" }` ' +
+        'when the database responds, or 503 with `{ "status": "unavailable" }` when it does not. ' +
         "No authentication required.",
       operationId: "getReadiness",
       security: [],

@@ -65,8 +65,6 @@ describe("RedisCacheStore", () => {
   it("propagates Redis write failures to the caller (policy lives above)", async () => {
     const store = new RedisCacheStore(new FailingRedis());
 
-    await expect(store.set("cache:group:g1", "v", 60)).rejects.toThrow(
-      "Connection is closed.",
-    );
+    await expect(store.set("cache:group:g1", "v", 60)).rejects.toThrow("Connection is closed.");
   });
 });

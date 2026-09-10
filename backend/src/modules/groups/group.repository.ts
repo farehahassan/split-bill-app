@@ -1,9 +1,6 @@
 import type { Group, GroupMember } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
-import {
-  createActivityEvent,
-  type ActivityEventInput,
-} from "../activity/activity.repository.js";
+import { createActivityEvent, type ActivityEventInput } from "../activity/activity.repository.js";
 
 export interface GroupMemberUser {
   id: string;

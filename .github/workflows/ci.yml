@@ -1,0 +1,97 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Lint, Test & Build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_test
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: ci_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ci_test:ci_test_password@localhost:5432/ci_test_db
+      JWT_SECRET: ci-test-jwt-secret-that-is-long-enough-for-validation
+      REDIS_URL: redis://localhost:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Validate Prisma schema
+        working-directory: backend
+        run: npm run db:validate
+
+      - name: Lint
+        working-directory: backend
+        run: npm run lint
+
+      - name: Format check
+        working-directory: backend
+        run: npm run format:check
+
+      - name: TypeScript type check
+        working-directory: backend
+        run: npm run typecheck
+
+      - name: Unit tests
+        working-directory: backend
+        run: npm test
+
+      - name: Apply database migrations
+        working-directory: backend
+        run: npm run db:migrate
+
+      - name: Security audit
+        working-directory: backend
+        run: npm audit --audit-level=moderate
+
+      - name: Production build
+        working-directory: backend
+        run: npm run build

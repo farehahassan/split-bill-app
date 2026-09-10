@@ -247,9 +247,7 @@ describe("Authentication API", () => {
 
     it("should return 400 for a missing, empty, or unexpected refresh token", async () => {
       const missing = await request(app).post("/api/v1/auth/refresh").send({});
-      const empty = await request(app)
-        .post("/api/v1/auth/refresh")
-        .send({ refreshToken: "" });
+      const empty = await request(app).post("/api/v1/auth/refresh").send({ refreshToken: "" });
       const extra = await request(app)
         .post("/api/v1/auth/refresh")
         .send({ refreshToken: "x", userId: "user-1" });

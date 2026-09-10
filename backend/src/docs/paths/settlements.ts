@@ -64,9 +64,24 @@ const settlementsPaths: Record<string, PathItemObject> = {
             success: true,
             data: {
               balances: [
-                { userId: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d", name: "Ahmed Raza", email: "ahmed@example.com", amountMinorUnits: 160 },
-                { userId: "b2d9c1e0-1a2b-4c3d-9e4f-5a6b7c8d9e0f", name: "Sana Malik", email: "sana@example.com", amountMinorUnits: -60 },
-                { userId: "7a7a7a7a-8b8b-4c4c-adad-1e1e1e1e1e1e", name: "Usman Tariq", email: "usman@example.com", amountMinorUnits: -100 },
+                {
+                  userId: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+                  name: "Ahmed Raza",
+                  email: "ahmed@example.com",
+                  amountMinorUnits: 160,
+                },
+                {
+                  userId: "b2d9c1e0-1a2b-4c3d-9e4f-5a6b7c8d9e0f",
+                  name: "Sana Malik",
+                  email: "sana@example.com",
+                  amountMinorUnits: -60,
+                },
+                {
+                  userId: "7a7a7a7a-8b8b-4c4c-adad-1e1e1e1e1e1e",
+                  name: "Usman Tariq",
+                  email: "usman@example.com",
+                  amountMinorUnits: -100,
+                },
               ],
             },
           },
@@ -157,11 +172,10 @@ const settlementsPaths: Record<string, PathItemObject> = {
       operationId: "getSettlement",
       parameters: [settlementIdPathParameter],
       responses: {
-        200: jsonResponse(
-          "The settlement.",
-          settlementData("Settlement"),
-          { success: true, data: { settlement: settlementExample } },
-        ),
+        200: jsonResponse("The settlement.", settlementData("Settlement"), {
+          success: true,
+          data: { settlement: settlementExample },
+        }),
         401: componentResponse("Unauthorized"),
         403: componentResponse("Forbidden"),
         404: componentResponse("NotFound"),

@@ -63,9 +63,7 @@ describe("HTTP request metrics", () => {
   it("normalizes parameterized routes so IDs never become labels", async () => {
     const rawId = "group-9f8e7-high-cardinality";
 
-    await request(app)
-      .get(`/api/v1/groups/${rawId}`)
-      .expect(HTTP_STATUSES.UNAUTHORIZED);
+    await request(app).get(`/api/v1/groups/${rawId}`).expect(HTTP_STATUSES.UNAUTHORIZED);
 
     expect(
       metrics.counterValue(METRIC.httpRequestsTotal, {
@@ -87,9 +85,7 @@ describe("HTTP request metrics", () => {
   });
 
   it("counts error responses separately via http_errors_total", async () => {
-    await request(app)
-      .get("/api/v1/auth/me")
-      .expect(HTTP_STATUSES.UNAUTHORIZED);
+    await request(app).get("/api/v1/auth/me").expect(HTTP_STATUSES.UNAUTHORIZED);
 
     expect(
       metrics.counterValue(METRIC.httpErrorsTotal, {
