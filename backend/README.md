@@ -158,6 +158,10 @@ backend/
 │   └── summary.api.test.ts       # Group summary endpoint integration tests (202, 403, 404, 500)
 │   └── settlement.lock.test.ts   # Settlement creation under the lock (409 conflict, degrade, success)
 │   └── edge.test.ts              # Edge layer tests (trust proxy, URL/body/request-ID guard, 413)
+│   ├── integration/
+│   │   ├── helpers.ts            # Opt-in gating + test Postgres/Redis connection helpers
+│   │   ├── postgres.integration.test.ts  # Real-Postgres suites (transactions, constraints, rollback, balances)
+│   │   └── redis.integration.test.ts     # Real-Redis suites (cache store, lock, rate-limit store, primitives)
 │   └── helpers/
 │       └── fakeRedis.ts          # In-memory + failing Redis fakes for tests
 ├── .env.example
@@ -166,7 +170,8 @@ backend/
 ├── prettier.config.js
 ├── package.json
 ├── tsconfig.json
-├── vitest.config.ts
+├── vitest.config.ts              # Unit/api test config (excludes tests/integration/**)
+├── vitest.integration.config.ts  # Integration test config (tests/integration/** only)
 └── README.md
 ```
 
@@ -189,6 +194,18 @@ npm install
 
 Copy `.env.example` to `.env` and configure. **Never commit your `.env` file or real PostgreSQL credentials.**
 
+The process reads a single environment for a given context. Use **separate
+variables per context** — never point dev, unit tests, integration tests, or CI
+at the same database/Redis:
+
+| Context | How it is configured |
+|---|---|
+| Development / production server & worker | `DATABASE_URL`, `REDIS_URL`, and app settings (below) |
+| Unit tests (`npm test`) | Fully hermetic — hardcoded mock credentials in `tests/setup.ts`; no real services touched |
+| Integration tests (`npm run test:integration`) | Must opt in with `RUN_INTEGRATION_TESTS=true` plus `TEST_DATABASE_URL` (and optionally `TEST_REDIS_URL`) |
+| Prisma CLI (`db:migrate`, `db:studio`, `db:validate`) | Reads `DATABASE_URL` (and a working `NODE_ENV`) |
+| CI | Provisions its own Postgres 16 + Redis 7 containers and sets the `TEST_*` variables (see [Continuous Integration](#continuous-integration)) |
+
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `NODE_ENV` | No | `development` | `development`, `production`, or `test` |
@@ -202,6 +219,9 @@ Copy `.env.example` to `.env` and configure. **Never commit your `.env` file or 
 | `RATE_LIMIT_MAX` | No | `100` | Max requests per client IP per window for non-auth endpoints |
 | `AUTH_RATE_LIMIT_MAX` | No | `20` | Max requests per client IP per window for `/api/v1/auth/*` |
 | `REDIS_URL` | No | `redis://localhost:6379` | Redis connection string for distributed rate limiting/locking. Never commit one containing a password. |
+| `RUN_INTEGRATION_TESTS` | No | — | Set to `true` to enable the real-infrastructure integration suites. Required only when running `npm run test:integration`; must be a deliberate opt-in. |
+| `TEST_DATABASE_URL` | No | — | Dedicated PostgreSQL connection string for the integration suites. Never point it at development/production data; the suites refuse to run without it. |
+| `TEST_REDIS_URL` | No | `redis://localhost:6379/15` | Dedicated Redis connection string for the integration suites. Defaults to logical database 15 so a dev server's keyspace is never touched. |
 | `TRUST_PROXY` | No | `false` | Reverse-proxy trust level for `req.ip`. Use `true`/`1` (first hop), a hop count, or an Express value (`loopback`, subnet, ...). Leave `false` when no proxy is deployed. |
 | `DISTRIBUTED_LOCK_TTL_MS` | No | `10000` | TTL of distributed locks in milliseconds. Must exceed the longest protected operation. |
 | `JOB_QUEUE_MAX_ATTEMPTS` | No | `5` | Retry budget for background jobs before they are discarded. |
@@ -244,7 +264,8 @@ npm run worker           # Start the background worker (tsx, development)
 npm run build            # Compile TypeScript to dist/
 npm start                # Run compiled server from dist/
 npm run start:worker     # Run compiled worker from dist/
-npm test                 # Run test suite (Vitest)
+npm test                 # Run unit/api test suite (Vitest, hermetic — no live services)
+npm run test:integration # Run integration suites against a real PostgreSQL + Redis (see "Continuous Integration")
 npm run test:watch       # Run tests in watch mode
 npm run test:coverage    # Run tests with coverage
 npm run lint             # Run ESLint
@@ -425,8 +446,11 @@ the database) and stays up — but it is **required** by the **worker process**,
 which cannot move jobs without a queue transport. Redis is accessed only through
 the narrow `RedisLike` contract in `src/redis/redisClient.ts` (a single lazy
 ioredis client, created with `enableOfflineQueue: false` so commands fail fast
-instead of queueing), so tests can inject an in-memory fake — the test suite
-runs without a live Redis server.
+instead of queueing), so tests can inject an in-memory fake — the unit test suite runs without a live
+Redis server. Real-Redis behavior is additionally verified by the integration
+suites under `tests/integration/` (`npm run test:integration`), which opt in via
+`RUN_INTEGRATION_TESTS=true` and `TEST_REDIS_URL` (default
+`redis://localhost:6379/15`).
 
 - `connectRedis()` runs at startup and is **non-fatal for the API server**: if
   Redis is unreachable the server keeps serving with degraded behavior
@@ -1476,6 +1500,239 @@ The `currencyCode` field (default `PKR`) is stored on financial records for futu
 
 All entities use **UUID strings** generated by Prisma's `@default(uuid())` generator. This provides globally unique, non-sequential identifiers that are safe for client exposure and consistent across all entities.
 
+## Production Deployment
+
+### Deployment Architecture
+
+The backend is deployed as a **Docker container** (multi-stage build) running
+Node.js 22 on Debian. This is the recommended model because it provides:
+
+- Reproducible builds (same image in CI, staging, and production)
+- Isolation from host dependencies
+- Non-root runtime user by default
+- Simple rollbacks (revert to previous image)
+- Compatibility with any container orchestrator (Docker, Kubernetes, ECS, etc.)
+
+### Quick Start (Local Development)
+
+```bash
+# Start PostgreSQL + Redis infrastructure
+docker compose up -d
+
+# Apply database migrations
+cd backend
+npm run db:migrate
+
+# Start the API server (with hot-reload)
+npm run dev
+
+# In a separate terminal — start the background worker
+npm run worker
+```
+
+### Building the Docker Image
+
+```bash
+# From the repository root
+docker build -f backend/Dockerfile -t hisab-backend:latest .
+
+# Verify the image
+docker run --rm hisab-backend:latest node -e "console.log('OK')"
+```
+
+### Running with Docker Compose
+
+A `docker-compose.yml` at the repository root provides PostgreSQL and Redis for
+local development. To run the full stack inside containers:
+
+```bash
+# Build and start everything (infrastructure + API + worker)
+docker compose up -d --build
+```
+
+The API server will be available at `http://localhost:3000` and the health
+endpoint at `http://localhost:3000/health`.
+
+For a **reference production topology** (API + worker + PostgreSQL + Redis with
+health checks and restart policies) see `docker-compose.prod.yml` at the
+repository root. It is an example to adapt — fill `.env.prod` with real secrets,
+and prefer managed databases/Redis where available.
+
+### Production Environment Variables
+
+Supply these via your hosting platform's secret/environment mechanism:
+
+| Variable | Required | Description |
+|---|---|---|
+| `NODE_ENV` | Yes | Set to `production` |
+| `DATABASE_URL` | Yes | Managed PostgreSQL connection string |
+| `JWT_SECRET` | Yes | Cryptographically random 64+ byte hex string |
+| `REDIS_URL` | Yes | Managed Redis connection string |
+| `CORS_ORIGIN` | Yes | Frontend production URL |
+| `PORT` | No | Defaults to `3000` |
+| `TRUST_PROXY` | Yes | `true` when behind a load balancer |
+| `JWT_EXPIRES_IN` | No | Defaults to `7d` |
+| `RATE_LIMIT_*` | No | Tune per deployment |
+| `METRICS_ENABLED` | No | Defaults to `true` |
+
+**Never** commit real values. **Never** print secrets during deployment.
+
+Generate a JWT secret:
+```bash
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
+
+### Database Migration Procedure
+
+```bash
+# 1. Build the image
+docker build -f backend/Dockerfile -t hisab-backend:latest .
+
+# 2. Run migrations against the production database
+docker run --rm \
+  --env-file production.env \
+  hisab-backend:latest \
+  npx prisma migrate deploy
+
+# 3. Start the application
+docker run -d \
+  --env-file production.env \
+  -p 3000:3000 \
+  hisab-backend:latest
+```
+
+**Always** use `prisma migrate deploy` for production. Never use
+`prisma db push` or `prisma migrate dev` in production.
+
+### Health Endpoints
+
+| Endpoint | Purpose | Expected Response |
+|---|---|---|
+| `GET /health` | Liveness — "is the process alive?" | `200 { "status": "ok" }` |
+| `GET /health/ready` | Readiness — "can the app serve traffic?" | `200 { "status": "ready", "checks": { "postgres": true, "redis": true } }` |
+
+The readiness endpoint checks PostgreSQL connectivity and, when Redis is
+connected, verifies Redis responsiveness. A Redis outage alone does **not**
+block readiness (the API degrades gracefully).
+
+### Post-Deployment Verification
+
+```bash
+# 1. Liveness
+curl -f https://your-domain/health
+
+# 2. Readiness (should return postgres + redis checks)
+curl -f https://your-domain/health/ready
+
+# 3. API smoke test (should return 401 for unauthenticated request)
+curl -w "%{http_code}" -o /dev/null https://your-domain/api/v1/auth/me
+# Expected: 401
+```
+
+### Rollback
+
+1. **Application rollback:** redeploy the previous Docker image tag.
+2. **Failed migration:** if `prisma migrate deploy` fails, the application
+   startup will also fail (it does not auto-migrate). Fix the migration and
+   redeploy.
+3. **Health check failure:** the container's `HEALTHCHECK` will mark the
+   container as unhealthy; your orchestrator should restart or replace it.
+4. **Data rollback:** never attempt to roll back a production database migration
+   automatically. Use point-in-time recovery from your database provider's
+   backups.
+
+### Logging & Log Retention
+
+Logs are structured JSON written to **stdout** (`src/utils/logger.ts`). In
+Docker, capture them with `docker compose logs` or forward stdout to your
+platform's log aggregator (CloudWatch, Loki, Datadog, ...) via the container /
+host log driver.
+
+- Every HTTP request produces one request-completion log line with
+  `requestId`, `method`, `path`, `route`, `statusCode`, and `durationMs`
+  (see [Request Tracing](#request-tracing)). Use the response's `X-Request-Id`
+  header to correlate a report back to its exact log line.
+- Worker logs carry the enqueuing request's `requestId`, so a background job
+  can be traced to the HTTP call that queued it.
+- **Never logged:** passwords, tokens, refresh tokens, Authorization headers,
+  cookies, request/response bodies, database credentials, Redis connection
+  strings, or cached payloads (group names/member emails).
+- **Retention:** keep at least 30 days online for incident triage, and archive
+  longer if your compliance posture requires it. Centralized logs must be a
+  single durable sink — container stdout alone is ephemeral.
+- Container restart policies (`restart: unless-stopped`) and orchestration
+  health checks keep logs continuous; if a process crashes, the final error
+  line includes the fatal exception reason.
+
+### Database Backups & Restore
+
+PostgreSQL is the only durable store. Redis is a **disposable performance
+layer** — cache entries, rate-limit counters, and job-queue state are all TTL
+or lease bound, so losing it requires no restore, only reconnect.
+
+- **Scheduled backups:** use your provider's managed backups, or run `pg_dump`
+  on a cron as the smallest reliable baseline:
+  ```bash
+  pg_dump "$DATABASE_URL" --format=plain --file=hisab_$(date +%F).sql
+  ```
+- **Point-in-time recovery (PITR):** enable it with a managed provider
+  (Neon/Supabase/RDS) for the ability to restore to just before an incident.
+- **Test restores regularly.** A backup that has never been restored is not a
+  backup. Practice the restore into a scratch database at least quarterly:
+  ```bash
+  psql "$DATABASE_URL" --file=hisab_YYYY-MM-DD.sql
+  ```
+- **Restore procedure:** stop the API/worker (prevent writes), restore into a
+  fresh database, verify with `GET /health/ready`, then start the API/worker.
+  Never restore over a live database without explicit sign-off.
+
+### Incident Runbook
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| `GET /health` unreachable / container unhealthy | Process crash or deploy failure | Read the last log lines (a fatal exit reason is logged), check the image tag, roll back the application image. |
+| `GET /health/ready` → 503 | PostgreSQL unreachable | Check `DATABASE_URL`, network, and credentials. Readiness recovers automatically once the DB responds. |
+| HTTP 500 with an `X-Request-Id` | Application bug and/or data anomaly | Pull logs for that `requestId`; deploy a fix, do not retry blindly. 500s never leak stack traces. |
+| Process exits with code 1 | `uncaughtException` / `unhandledRejection` | Every fatal handler logs the error before exiting; the orchestrator restarts. Investigate the logged cause, fix, redeploy. |
+| Unexpected 429s | Rate-limit tuning too aggressive | Raise `RATE_LIMIT_MAX` / `AUTH_RATE_LIMIT_MAX`; verify `TRUST_PROXY` so real client IPs (not the proxy) are counted. |
+| Redis connection warnings | Redis down | Expected, non-fatal for the API: in-memory rate limiting, uncoordinated locks, cache misses. The **worker is fatal**, however — restart Redis promptly. |
+| Summaries stale / recompute jobs not running | Worker down or Redis down | Worker fails fast at startup on DB/Redis outage; restart it. Queued jobs retry with exponential backoff within the attempt budget; drained after that. |
+| `npm audit` fails in CI | Moderate+ vulnerability introduced | Run `npm audit` locally against the same lockfile; upgrade the vulnerable package or add an explicit `overrides` (see [Continuous Integration](#continuous-integration)). |
+| Migration failure at deploy | `prisma migrate deploy` failed | App startup fails closed (it never auto-migrates). Fix the migration, redeploy. Never `prisma db push`/`migrate dev` in production. |
+| Data corruption or bad data write | Defect or operator error | Use point-in-time recovery from your provider's backups. Never attempt an automatic DB migration rollback. |
+
+### Dependency Security
+
+`npm audit --audit-level=moderate` runs in CI and **fails the pipeline** on any
+moderate-or-higher advisory. Remediation policy:
+
+- Prefer upgrading the affected package to a patched release.
+- When no patched release exists, pin an explicit `overrides` entry in
+  `backend/package.json` (this exact mechanism resolved the vitest upgrade
+  advisories previously) and re-run the full test suite plus
+  `npm audit --audit-level=moderate`.
+- Never silence an audit failure without a documented override and a passing
+  suite.
+
+### Required Production Secrets
+
+| Secret | Source |
+|---|---|
+| `DATABASE_URL` | Managed PostgreSQL provider (e.g. Neon, Supabase, RDS) |
+| `REDIS_URL` | Managed Redis provider (e.g. Upstash, ElastiCache, Redis Cloud) |
+| `JWT_SECRET` | Generated randomly, stored in hosting platform secrets |
+
+### Troubleshooting
+
+- **`Invalid environment configuration`** at startup: a required env var is
+  missing. Check all required variables are set.
+- **Readiness returns 503**: PostgreSQL is unreachable from the container.
+  Verify `DATABASE_URL` and network connectivity.
+- **Redis warnings in logs**: non-fatal. The API runs with in-memory rate
+  limiting. Verify `REDIS_URL` if distributed rate limiting is needed.
+- **Migration errors**: ensure `prisma migrate deploy` ran successfully before
+  starting the application.
+
 ## Development Hot Reload
 
 The `PrismaClient` instance is cached on `globalThis` during development to prevent multiple database connections when `tsx watch` triggers file reloads.
@@ -1600,7 +1857,10 @@ Implemented so far (auth + groups + expenses + balances/settlements + activity f
   invalidation on rename/delete/member add/member remove; Redis outages degrade
   to PostgreSQL with logging (read=miss, write=log, invalidation=log), never raw
   Redis errors
-- Test suite (Vitest + Supertest, all passing without a live DB)
+- Two test tiers: **unit/api tests** (`npm test`, hermetic, mocked Prisma/Redis —
+  passing without a live DB) and **integration tests**
+  (`npm run test:integration`, real PostgreSQL + Redis, opt-in via
+  `RUN_INTEGRATION_TESTS` and `TEST_DATABASE_URL`)
 - **OpenAPI documentation** (`src/docs/`) — a typed, modular OpenAPI 3.0.3 spec
   served as self-hosted interactive Swagger UI at `GET /api/docs` and raw JSON at
   `GET /api/docs/openapi.json`, with tests asserting documented routes exist,
@@ -1720,3 +1980,97 @@ data) and reads no external state, so it is safe for a well-known scrape target.
 For production behind a shared edge, either restrict the route at the
 gateway/proxy or set `METRICS_ENABLED=false`; the environment table documents
 both options.
+
+## Continuous Integration
+
+A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) automatically validates
+every pull request and push to `master`.
+
+### What CI validates
+
+| Check | Command | Fails CI on |
+|---|---|---|
+| Dependency install | `npm ci` | Install failure |
+| Prisma client generation | `npx prisma generate` | Generation failure |
+| Prisma schema validation | `npm run db:validate` | Invalid schema |
+| ESLint | `npm run lint` | Lint errors |
+| Prettier formatting | `npm run format:check` | Formatting drift |
+| TypeScript type check | `npm run typecheck` | Type errors |
+| Unit tests | `npm test` | Test failures |
+| Database migrations | `npm run db:migrate` | Migration failure |
+| Integration tests | `npm run test:integration` | Test failures (runs after migrations, against real Postgres + Redis) |
+| Security audit | `npm audit --audit-level=moderate` | Moderate+ vulnerabilities |
+| Production build | `npm run build` | Compilation errors |
+| Flutter analyze (mobile job) | `flutter analyze` | Analyzer issues (Dart) |
+| Flutter tests (mobile job) | `flutter test` | Test failures (Dart) |
+
+### Infrastructure services
+
+CI spins up disposable PostgreSQL 16 and Redis 7 containers. After migrations
+are applied, the **integration suites** (`npm run test:integration`) run against
+these containers — they exercise real transactions/constraints/rollback,
+distributed locking, Redis-backed rate limiting, and the cache store. The
+integration suites **opt in** via the CI job environment
+(`RUN_INTEGRATION_TESTS=true`, `TEST_DATABASE_URL`, `TEST_REDIS_URL`); failing
+integration tests fail the pipeline. The unit suite (`npm test`) remains
+hermetic and never touches real services.
+
+The pipeline also runs an independent **mobile job** for the Flutter frontend
+(`frontend/`): it caches pub dependencies, runs `flutter analyze` with no
+warnings allowed, and runs the Dart test suite with `flutter test` (this
+includes the widget smoke test and the app's unit/contract tests — no
+emulator is required).
+
+### Running integration tests locally
+
+```bash
+cd backend
+npm run test:integration
+```
+
+This requires opt-in (a deliberate decision) and a dedicated PostgreSQL:
+
+```bash
+RUN_INTEGRATION_TESTS=true \
+TEST_DATABASE_URL=postgresql://user:password@localhost:5432/hisab_kitab_test \
+npm run test:integration
+```
+
+`TEST_REDIS_URL` defaults to `redis://localhost:6379/15`; if your local Redis is
+elsewhere, set it explicitly. The suites skip (report skipped, never silently
+pass) when opt-in or `TEST_DATABASE_URL` is missing, so an accidental run cannot
+execute destructive statements against development data. Migrations/tables in
+the test database must be up to date before running (`npm run db:migrate`).
+
+### When CI runs
+
+- On every **pull request** targeting `master`
+- On every **push** to `master`
+
+### Running equivalent checks locally
+
+```bash
+cd backend
+npm ci
+npx prisma generate
+npm run db:validate
+npm run lint
+npm run format:check
+npm run typecheck
+npm test
+npm audit --audit-level=moderate
+npm run build
+```
+
+### Troubleshooting
+
+- **Lint failures:** run `npm run lint:fix` to auto-fix.
+- **Format failures:** run `npm run format` to auto-format.
+- **Type errors:** run `npm run typecheck` and fix the reported issues.
+- **Test failures:** run `npm test` locally to reproduce. Unit/api tests use
+  mocked Prisma/Redis — no external services are required. Integration-suite
+  failures require real services: set `RUN_INTEGRATION_TESTS=true` and
+  `TEST_DATABASE_URL` (see above), and note the suites skip when those are
+  unset.
+- **Audit failures:** review `npm audit` output. Moderate+ advisories must be
+  resolved or explicitly acknowledged.

@@ -11,19 +11,21 @@ vi.mock("../src/modules/groups/group.repository.js", async () => {
   );
   return {
     ...actual,
-    GroupRepository: vi.fn(() => ({
-      createGroupWithOwner: vi.fn(),
-      findGroupsByUserId: vi.fn(),
-      findGroupById: vi.fn(),
-      findGroupByIdWithMembers: vi.fn(),
-      findUserById: vi.fn(),
-      isGroupMember: vi.fn(),
-      updateGroup: vi.fn(),
-      deleteGroup: vi.fn(),
-      addGroupMember: vi.fn(),
-      findGroupMember: vi.fn(),
-      removeGroupMember: vi.fn(),
-    })),
+    GroupRepository: vi.fn(function () {
+      return {
+        createGroupWithOwner: vi.fn(),
+        findGroupsByUserId: vi.fn(),
+        findGroupById: vi.fn(),
+        findGroupByIdWithMembers: vi.fn(),
+        findUserById: vi.fn(),
+        isGroupMember: vi.fn(),
+        updateGroup: vi.fn(),
+        deleteGroup: vi.fn(),
+        addGroupMember: vi.fn(),
+        findGroupMember: vi.fn(),
+        removeGroupMember: vi.fn(),
+      };
+    }),
   };
 });
 
@@ -53,13 +55,17 @@ describe("GroupService", () => {
       const service = makeService();
       const result = await service.createGroup("owner-1", { name: "Trip to Naran" });
 
-      expect(repository.createGroupWithOwner).toHaveBeenCalledWith("owner-1", {
-        name: "Trip to Naran",
-      }, expect.objectContaining({
-        userId: "owner-1",
-        type: "GROUP_CREATED",
-        message: "created the group",
-      }));
+      expect(repository.createGroupWithOwner).toHaveBeenCalledWith(
+        "owner-1",
+        {
+          name: "Trip to Naran",
+        },
+        expect.objectContaining({
+          userId: "owner-1",
+          type: "GROUP_CREATED",
+          message: "created the group",
+        }),
+      );
       expect(result).toEqual({
         id: group.id,
         name: group.name,

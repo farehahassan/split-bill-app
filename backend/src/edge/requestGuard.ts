@@ -4,8 +4,8 @@ import { HTTP_STATUSES } from "../constants/http-statuses.js";
 import { sanitizeRequestId } from "../utils/requestId.js";
 
 /**
- * Matches the `express.json` / `express.urlencoded` body limit ("10mb") so the
- * edge layer and the body parser agree on what is acceptable.
+ * Matches the `express.json` body limit ("10mb") so the edge layer and the
+ * body parser agree on what is acceptable.
  */
 export const EDGE_MAX_BODY_BYTES = 10 * 1024 * 1024;
 
@@ -43,16 +43,12 @@ export function edgeRequestGuard(): RequestHandler {
     const target = `${req.method} ${req.originalUrl ?? req.url}`;
 
     if (hasControlCharacters(target)) {
-      res
-        .status(HTTP_STATUSES.NOT_FOUND)
-        .json({ success: false, message: "Endpoint not found." });
+      res.status(HTTP_STATUSES.NOT_FOUND).json({ success: false, message: "Endpoint not found." });
       return;
     }
 
     if ((req.originalUrl ?? req.url).length > EDGE_MAX_URL_LENGTH) {
-      res
-        .status(HTTP_STATUSES.NOT_FOUND)
-        .json({ success: false, message: "Endpoint not found." });
+      res.status(HTTP_STATUSES.NOT_FOUND).json({ success: false, message: "Endpoint not found." });
       return;
     }
 

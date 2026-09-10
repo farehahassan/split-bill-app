@@ -4,32 +4,27 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/ui/pressable_scale.dart';
-import '../../../../mock/mock_data.dart';
+import '../../data/models/activity_event.dart';
 import 'activity_details_sheet.dart';
 
-/// A single activity row: icon, title, subtitle and signed amount. Tap opens
-/// a details bottom sheet.
+/// A single activity row: icon, message and amount. Tap opens a details
+/// bottom sheet.
 class ActivityRow extends StatelessWidget {
-  const ActivityRow({super.key, required this.activity});
+  const ActivityRow({super.key, required this.event});
 
-  final MockActivity activity;
+  final ActivityEvent event;
 
   @override
   Widget build(BuildContext context) {
-    final isSettlement = activity.icon == Icons.swap_horiz;
-    final amountText = isSettlement
-        ? '${activity.amount.format()} settled'
-        : activity.isInflow
-        ? '+${activity.amount.format()}'
-        : activity.amount.format();
-    final amountColor = isSettlement || activity.isInflow
-        ? AppColors.success
-        : AppColors.danger;
+    final icon = event.isSettlement ? Icons.swap_horiz : Icons.receipt_long;
+    final iconColor = event.isSettlement ? AppColors.success : AppColors.primary;
+    final iconBackground = event.isSettlement ? AppColors.successSoft : AppColors.primarySoft;
 
     return PressableScale(
       onTap: () => showModalBottomSheet<void>(
         context: context,
-        builder: (context) => ActivityDetailsSheet(activity: activity),
+        isScrollControlled: true,
+        builder: (context) => ActivityDetailsSheet(event: event),
       ),
       child: Card(
         margin: EdgeInsets.zero,
@@ -41,10 +36,10 @@ class ActivityRow extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: activity.iconBackground,
+                  color: iconBackground,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(activity.icon, color: activity.iconColor, size: 22),
+                child: Icon(icon, color: iconColor, size: 22),
               ),
               const SizedBox(width: AppSpacing.medium),
               Expanded(
@@ -52,29 +47,40 @@ class ActivityRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      activity.title,
+                      event.message,
                       style: AppTextStyles.bodyMedium.copyWith(fontSize: 14.5),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(activity.subtitle, style: AppTextStyles.caption),
+                    Text(
+                      '${event.userName} · ${_timeLabel(event.occurredAt)}',
+                      style: AppTextStyles.caption,
+                    ),
                   ],
                 ),
               ),
               const SizedBox(width: AppSpacing.small),
-              Text(
-                amountText,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: amountColor,
+              if (event.amount != null)
+                Text(
+                  event.amount!.format(),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: event.isSettlement ? AppColors.success : AppColors.textPrimary,
+                  ),
                 ),
-              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  static String _timeLabel(DateTime date) {
+    final local = date.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 }

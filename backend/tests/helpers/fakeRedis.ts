@@ -105,11 +105,7 @@ export class FakeRedis implements RedisLike {
     return 1;
   }
 
-  async eval(
-    script: string,
-    numKeys: number,
-    ...args: (string | number)[]
-  ): Promise<unknown> {
+  async eval(script: string, numKeys: number, ...args: (string | number)[]): Promise<unknown> {
     const key = String(args[0]);
     if (script.includes("PEXPIRE")) {
       const windowMs = Number(args[numKeys]);
@@ -128,9 +124,7 @@ export class FakeRedis implements RedisLike {
       // is what prevents duplicate consumption.
       const now = Number(args[numKeys]);
       const members = this.zsets.get(key) ?? [];
-      const due = members
-        .filter((item) => item.score <= now)
-        .sort((a, b) => a.score - b.score)[0];
+      const due = members.filter((item) => item.score <= now).sort((a, b) => a.score - b.score)[0];
       return due ? due.member : null;
     }
 

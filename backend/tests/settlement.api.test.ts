@@ -30,6 +30,7 @@ vi.mock("../src/db/prisma.js", async () => {
         create: vi.fn(),
         findUnique: vi.fn(),
         findMany: vi.fn(),
+        count: vi.fn(),
       },
       idempotencyRecord: {
         findUnique: vi.fn(),
@@ -59,7 +60,10 @@ const validCreateBody = {
   amountMinorUnits: 500,
 };
 
-function hashOf(body: { payerId: string; payeeId: string; amountMinorUnits: number }, id = "group-1") {
+function hashOf(
+  body: { payerId: string; payeeId: string; amountMinorUnits: number },
+  id = "group-1",
+) {
   return createRequestHash({
     groupId: id,
     payerId: body.payerId,
@@ -166,6 +170,7 @@ describe("Settlements API", () => {
     mockPrisma.settlement.create.mockReset();
     mockPrisma.settlement.findUnique.mockReset();
     mockPrisma.settlement.findMany.mockReset();
+    mockPrisma.settlement.count.mockReset();
     mockPrisma.idempotencyRecord.findUnique.mockReset();
     mockPrisma.idempotencyRecord.create.mockReset();
     mockPrisma.idempotencyRecord.update.mockReset();
@@ -237,7 +242,7 @@ describe("Settlements API", () => {
     it("creates a settlement, claims the idempotency key, and returns 201", async () => {
       mockPrisma.group.findUnique.mockResolvedValue(group);
       mockPrisma.groupMember.findMany.mockResolvedValue(memberUsers());
-const tx = freshCreateTx();
+      const tx = freshCreateTx();
       mockPrisma.$transaction.mockImplementation(runTransaction(tx));
 
       const res = await request(app)
@@ -468,9 +473,9 @@ const tx = freshCreateTx();
       mockPrisma.$transaction.mockImplementation(runTransaction(tx));
       tx.settlement.findUnique.mockResolvedValue(storedSettlement());
 
-      tx.idempotencyRecord.findUnique.mockResolvedValueOnce(null).mockResolvedValue(
-        idempotencyRecordRow(),
-      );
+      tx.idempotencyRecord.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue(idempotencyRecordRow());
 
       const first = await request(app)
         .post("/api/v1/groups/group-1/settlements")
@@ -523,9 +528,7 @@ const tx = freshCreateTx();
       const tx = freshCreateTx();
       mockPrisma.$transaction.mockImplementation(runTransaction(tx));
 
-      tx.idempotencyRecord.findUnique.mockResolvedValue(
-        idempotencyRecordRow({ userId: bobId }),
-      );
+      tx.idempotencyRecord.findUnique.mockResolvedValue(idempotencyRecordRow({ userId: bobId }));
 
       const res = await request(app)
         .post("/api/v1/groups/group-1/settlements")
@@ -649,6 +652,57 @@ const tx = freshCreateTx();
     it("returns 401 without authentication", async () => {
       const res = await request(app).get("/api/v1/groups/group-1/settlements");
       expect(res.status).toBe(HTTP_STATUSES.UNAUTHORIZED);
+    });
+
+    it("returns pagination metadata when page/limit are supplied", async () => {
+      mockPrisma.group.findUnique.mockResolvedValue(group);
+      mockPrisma.groupMember.findMany.mockResolvedValue(memberUsers());
+      mockPrisma.settlement.count.mockResolvedValue(4);
+      mockPrisma.settlement.findMany.mockResolvedValue([storedSettlement()]);
+
+      const res = await request(app)
+        .get("/api/v1/groups/group-1/settlements?page=2&limit=2")
+        .set("Authorization", `Bearer ${signToken(aliceId)}`);
+
+      expect(res.status).toBe(HTTP_STATUSES.OK);
+      expect(res.body.data.settlements).toHaveLength(1);
+      expect(res.body.pagination).toEqual({ page: 2, limit: 2, total: 4 });
+      expect(mockPrisma.settlement.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 2, take: 2 }),
+      );
+      expect(mockPrisma.settlement.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { groupId: "group-1" } }),
+      );
+    });
+
+    it("defaults limit to 20 when only page is supplied", async () => {
+      mockPrisma.group.findUnique.mockResolvedValue(group);
+      mockPrisma.groupMember.findMany.mockResolvedValue(memberUsers());
+      mockPrisma.settlement.count.mockResolvedValue(3);
+      mockPrisma.settlement.findMany.mockResolvedValue([]);
+
+      const res = await request(app)
+        .get("/api/v1/groups/group-1/settlements?page=3")
+        .set("Authorization", `Bearer ${signToken(aliceId)}`);
+
+      expect(res.status).toBe(HTTP_STATUSES.OK);
+      expect(res.body.pagination).toEqual({ page: 3, limit: 20, total: 3 });
+    });
+
+    it("returns 400 for an out-of-range limit", async () => {
+      const res = await request(app)
+        .get("/api/v1/groups/group-1/settlements?limit=100")
+        .set("Authorization", `Bearer ${signToken(aliceId)}`);
+
+      expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
+    });
+
+    it("returns 400 for a non-positive page", async () => {
+      const res = await request(app)
+        .get("/api/v1/groups/group-1/settlements?page=0")
+        .set("Authorization", `Bearer ${signToken(aliceId)}`);
+
+      expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
     });
 
     it("returns 403 for a non-member", async () => {

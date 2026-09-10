@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { HTTP_STATUSES } from "../../constants/http-statuses.js";
+import type { PaginationQuery } from "../../utils/pagination.js";
 import { createRequestHash } from "../idempotency/request-hash.js";
 import { SettlementService } from "./settlement.service.js";
 import { SettlementRepository } from "./settlement.repository.js";
@@ -44,8 +45,24 @@ export async function createSettlement(req: Request, res: Response): Promise<voi
 
 export async function getGroupSettlements(req: Request, res: Response): Promise<void> {
   const groupId = (req.params as { id: string }).id;
-  const settlements = await settlementService.getGroupSettlements(req.userId!, groupId);
-  res.status(HTTP_STATUSES.OK).json({ success: true, data: { settlements } });
+  const query = req.query as PaginationQuery;
+
+  const pagination =
+    query.page !== undefined || query.limit !== undefined
+      ? { page: query.page ?? 1, limit: query.limit ?? 20 }
+      : undefined;
+
+  const result = await settlementService.getGroupSettlements(req.userId!, groupId, pagination);
+
+  const payload: Record<string, unknown> = {
+    success: true,
+    data: { settlements: result.settlements },
+  };
+  if (result.pagination) {
+    payload.pagination = result.pagination;
+  }
+
+  res.status(HTTP_STATUSES.OK).json(payload);
 }
 
 export async function getSettlementById(req: Request, res: Response): Promise<void> {

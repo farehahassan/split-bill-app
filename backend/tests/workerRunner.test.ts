@@ -1,10 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { z } from "zod";
 
-import {
-  JobQueue,
-  PermanentJobFailureError,
-} from "../src/queues/jobQueue.js";
+import { JobQueue, PermanentJobFailureError } from "../src/queues/jobQueue.js";
 import type { JobRegistry } from "../src/queues/jobRegistry.js";
 import { JOB_TYPES } from "../src/queues/job.types.js";
 import { WorkerRunner } from "../src/queues/workerRunner.js";
@@ -146,7 +143,13 @@ describe("WorkerRunner", () => {
     makeDue(redis);
     await runner.tick();
     expect(process).toHaveBeenCalledTimes(2);
-    expect((JSON.parse(redis.store.get(`job:data:${envelope.jobId}`)?.value as string) as { attempts: number }).attempts).toBe(2);
+    expect(
+      (
+        JSON.parse(redis.store.get(`job:data:${envelope.jobId}`)?.value as string) as {
+          attempts: number;
+        }
+      ).attempts,
+    ).toBe(2);
   });
 
   it("discards the job once the attempt budget is exhausted", async () => {

@@ -1,0 +1,92 @@
+# ---------------------------------------------------------------------------
+# docker-compose.prod.yml — Reference production deployment (API + worker +
+# PostgreSQL + Redis).
+#
+# This is an EXAMPLE topology, not a substitute for an orchestrator. Adapt it
+# to your hosting platform (secret management, TLS, logging, backups) before
+# use. For managed databases (Neon/Supabase/RDS, Upstash/ElastiCache) remove
+# the postgres/redis services and point DATABASE_URL/REDIS_URL at them.
+#
+# Usage:
+#   cp .env.prod.example .env.prod     # fill in real secrets, never commit
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# The backend and worker are separate replicas of the same `hisab-backend`
+# image: the API service runs `dist/server.js` and the worker runs
+# `dist/worker.js` (overridden via `command`).
+# ---------------------------------------------------------------------------
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env.prod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: ${POSTGRES_DB:-hisab}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: hisab-backend:latest
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-hisab}
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: hisab-backend:latest
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+    env_file:
+      - .env.prod
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-hisab}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:

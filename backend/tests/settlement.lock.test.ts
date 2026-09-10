@@ -5,10 +5,7 @@ import { SettlementRepository } from "../src/modules/settlements/settlement.repo
 import { APP_ERRORS } from "../src/constants/app-errors.js";
 import { HTTP_STATUSES } from "../src/constants/http-statuses.js";
 import { ConflictError } from "../src/errors/app.error.js";
-import {
-  DistributedLock,
-  DistributedLockConflictError,
-} from "../src/redis/distributedLock.js";
+import { DistributedLock, DistributedLockConflictError } from "../src/redis/distributedLock.js";
 import type { GroupMemberUser } from "../src/modules/settlements/settlement.repository.js";
 
 type WithLock = Pick<DistributedLock, "withLock">;
@@ -19,11 +16,13 @@ vi.mock("../src/modules/settlements/settlement.repository.js", async () => {
   >("../src/modules/settlements/settlement.repository.js");
   return {
     ...actual,
-    SettlementRepository: vi.fn(() => ({
-      findGroupById: vi.fn(),
-      findGroupMembers: vi.fn(),
-      createSettlement: vi.fn(),
-    })),
+    SettlementRepository: vi.fn(function () {
+      return {
+        findGroupById: vi.fn(),
+        findGroupMembers: vi.fn(),
+        createSettlement: vi.fn(),
+      };
+    }),
   };
 });
 

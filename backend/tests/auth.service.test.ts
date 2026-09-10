@@ -13,15 +13,17 @@ vi.mock("../src/modules/auth/auth.repository.js", async () => {
   );
   return {
     ...actual,
-    AuthRepository: vi.fn(() => ({
-      findByEmail: vi.fn(),
-      findById: vi.fn(),
-      create: vi.fn(),
-      findRefreshTokenByHash: vi.fn(),
-      createRefreshToken: vi.fn(),
-      revokeRefreshTokenById: vi.fn(),
-      rotateRefreshToken: vi.fn(),
-    })),
+    AuthRepository: vi.fn(function () {
+      return {
+        findByEmail: vi.fn(),
+        findById: vi.fn(),
+        create: vi.fn(),
+        findRefreshTokenByHash: vi.fn(),
+        createRefreshToken: vi.fn(),
+        revokeRefreshTokenById: vi.fn(),
+        rotateRefreshToken: vi.fn(),
+      };
+    }),
   };
 });
 
@@ -33,11 +35,13 @@ function makeService(): AuthService {
   return new AuthService(repository);
 }
 
-function refreshTokenRecord(overrides: {
-  revokedAt?: Date | null;
-  expiresAt?: Date;
-  userId?: string;
-} = {}) {
+function refreshTokenRecord(
+  overrides: {
+    revokedAt?: Date | null;
+    expiresAt?: Date;
+    userId?: string;
+  } = {},
+) {
   return {
     id: "rt-1",
     userId: overrides.userId ?? "user-1",
@@ -118,8 +122,9 @@ describe("AuthService", () => {
       });
       expect(result.token).toBeTruthy();
       expect(result.refreshToken).toBeTruthy();
-      expect((repository.createRefreshToken.mock.calls[0]?.[0] as { tokenHash: string }).tokenHash)
-        .not.toBe(result.refreshToken);
+      expect(
+        (repository.createRefreshToken.mock.calls[0]?.[0] as { tokenHash: string }).tokenHash,
+      ).not.toBe(result.refreshToken);
     });
 
     it("should throw CONFLICT when the email is already registered", async () => {

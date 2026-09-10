@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../app/di/injection.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -9,11 +10,13 @@ import '../../../../core/ui/app_logo.dart';
 import '../../../../core/ui/app_text_field.dart';
 import '../../../../core/ui/entrance.dart';
 import '../../../../core/ui/responsive_content.dart';
+import '../../logic/auth_controller.dart';
 import '../widgets/field_label.dart';
 import '../widgets/google_g.dart';
 
-/// Sign-in screen: brand mark, email/password fields, sign in + Google
-/// buttons. All actions are mocked for the UI showcase.
+/// Sign-in screen backed by the real backend auth endpoints
+/// (`POST /auth/login`). Field errors validate locally; server errors
+/// (e.g. invalid credentials) surface in a banner.
 class SignInPage extends StatefulWidget {
   const SignInPage({super.key});
 
@@ -25,10 +28,12 @@ class _SignInPageState extends State<SignInPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  AuthController get _auth => getIt<AuthController>();
+
   String? _emailError;
   String? _passwordError;
+  String? _formError;
   bool _obscure = true;
-  bool _loading = false;
 
   @override
   void dispose() {
@@ -41,6 +46,7 @@ class _SignInPageState extends State<SignInPage> {
     setState(() {
       _emailError = null;
       _passwordError = null;
+      _formError = null;
     });
 
     final email = _emailController.text.trim();
@@ -53,15 +59,27 @@ class _SignInPageState extends State<SignInPage> {
     }
     if (_emailError != null || _passwordError != null) return;
 
-    setState(() => _loading = true);
-    // Mocked authentication for the showcase.
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
-    context.go('/shell');
+    try {
+      await _auth.login(email: email, password: password);
+      if (!mounted) return;
+      context.go('/shell');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _formError = _auth.errorMessage ?? 'Unable to sign in. Please try again.';
+      });
+    }
+  }
+
+  void _notifyComingSoon(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
+    final loading = _auth.isSubmitting;
     return Scaffold(
       body: ResponsiveContent(
         topPadding: 0,
@@ -89,6 +107,11 @@ class _SignInPageState extends State<SignInPage> {
               ),
               const SizedBox(height: 40),
 
+              if (_formError != null) ...[
+                _ErrorBanner(message: _formError!),
+                const SizedBox(height: AppSpacing.medium),
+              ],
+
               // Email.
               Entrance(
                 delay: const Duration(milliseconds: 200),
@@ -104,6 +127,7 @@ class _SignInPageState extends State<SignInPage> {
                   textInputAction: TextInputAction.next,
                   prefixIcon: const Icon(Icons.mail_outline, size: 20),
                   errorText: _emailError,
+                  enabled: !loading,
                 ),
               ),
               const SizedBox(height: AppSpacing.large),
@@ -115,13 +139,7 @@ class _SignInPageState extends State<SignInPage> {
                   children: [
                     const Expanded(child: FieldLabel(text: 'PASSWORD')),
                     GestureDetector(
-                      onTap: () => ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          const SnackBar(
-                            content: Text('Password reset coming soon'),
-                          ),
-                        ),
+                      onTap: () => _notifyComingSoon('Password reset coming soon'),
                       child: Text(
                         'FORGOT?',
                         style: AppTextStyles.labelSmall.copyWith(
@@ -150,6 +168,7 @@ class _SignInPageState extends State<SignInPage> {
                     ),
                   ),
                   errorText: _passwordError,
+                  enabled: !loading,
                   onChanged: (_) => setState(() {}),
                 ),
               ),
@@ -160,7 +179,7 @@ class _SignInPageState extends State<SignInPage> {
                 delay: const Duration(milliseconds: 400),
                 child: AppButton(
                   label: 'Sign In',
-                  isLoading: _loading,
+                  isLoading: loading,
                   onPressed: _signIn,
                 ),
               ),
@@ -191,35 +210,28 @@ class _SignInPageState extends State<SignInPage> {
               Entrance(
                 delay: const Duration(milliseconds: 520),
                 child: OutlinedButton(
-                  onPressed: _loading ? null : _signIn,
+                  onPressed: loading
+                      ? null
+                      : () => _notifyComingSoon('Google sign in coming soon'),
                   style: OutlinedButton.styleFrom(
                     backgroundColor: AppColors.surface,
                     foregroundColor: AppColors.textPrimary,
                     side: const BorderSide(color: AppColors.border),
                   ),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: AppColors.primary,
-                          ),
-                        )
-                      : const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            GoogleG(),
-                            SizedBox(width: 12),
-                            Text(
-                              'Google',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GoogleG(),
+                      SizedBox(width: 12),
+                      Text(
+                        'Google',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
                         ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.xl),
@@ -237,11 +249,7 @@ class _SignInPageState extends State<SignInPage> {
                       ),
                     ),
                     GestureDetector(
-                      onTap: () => ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          const SnackBar(content: Text('Sign up coming soon')),
-                        ),
+                      onTap: () => context.push('/sign-up'),
                       child: Text(
                         'Sign up',
                         style: AppTextStyles.bodyMedium.copyWith(
@@ -257,6 +265,36 @@ class _SignInPageState extends State<SignInPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, size: 18, color: AppColors.danger),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.danger),
+            ),
+          ),
+        ],
       ),
     );
   }

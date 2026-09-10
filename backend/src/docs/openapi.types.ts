@@ -5,15 +5,7 @@
  * type-checked without pulling in a dedicated OpenAPI library.
  */
 
-export type HttpMethod =
-  | "get"
-  | "post"
-  | "put"
-  | "delete"
-  | "patch"
-  | "head"
-  | "options"
-  | "trace";
+export type HttpMethod = "get" | "post" | "put" | "delete" | "patch" | "head" | "options" | "trace";
 
 export interface ReferenceObject {
   $ref: string;

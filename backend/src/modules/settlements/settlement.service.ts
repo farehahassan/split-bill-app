@@ -6,10 +6,7 @@ import {
   NotFoundError,
 } from "../../errors/app.error.js";
 import { loadEnv } from "../../config/env.js";
-import {
-  DistributedLock,
-  DistributedLockConflictError,
-} from "../../redis/distributedLock.js";
+import { DistributedLock, DistributedLockConflictError } from "../../redis/distributedLock.js";
 import { getRedis } from "../../redis/redisClient.js";
 import { METRIC, metrics } from "../../metrics/registry.js";
 import type { IdempotencyContext } from "../idempotency/reconcile.js";
@@ -52,6 +49,11 @@ export interface CreateSettlementInput {
   payerId: string;
   payeeId: string;
   amountMinorUnits: number;
+}
+
+export interface SettlementListPage {
+  settlements: SettlementDto[];
+  pagination?: { page: number; limit: number; total: number };
 }
 
 export class SettlementService {
@@ -162,7 +164,16 @@ export class SettlementService {
     }
   }
 
-  async getGroupSettlements(requesterId: string, groupId: string): Promise<SettlementDto[]> {
+  /**
+   * Lists a group's settlements. Pagination is opt-in: the response only
+   * carries pagination metadata when the caller supplied `page`/`limit`,
+   * preserving the legacy "return everything" envelope for every other call.
+   */
+  async getGroupSettlements(
+    requesterId: string,
+    groupId: string,
+    pagination?: { page: number; limit: number },
+  ): Promise<SettlementListPage> {
     const group = await this.repository.findGroupById(groupId);
     if (!group) {
       throw new NotFoundError(APP_ERRORS.GROUP_NOT_FOUND, "Group not found.");
@@ -170,8 +181,19 @@ export class SettlementService {
 
     await this.assertMemberOfGroup(requesterId, groupId);
 
-    const settlements = await this.repository.findSettlementsByGroupId(groupId);
-    return settlements.map((settlement) => this.toDto(settlement));
+    const { settlements, total } = await this.repository.findSettlementsByGroupId(
+      groupId,
+      pagination,
+    );
+    const list = settlements.map((settlement) => this.toDto(settlement));
+
+    if (pagination) {
+      return {
+        settlements: list,
+        pagination: { page: pagination.page, limit: pagination.limit, total: total! },
+      };
+    }
+    return { settlements: list };
   }
 
   async getSettlementById(requesterId: string, settlementId: string): Promise<SettlementDto> {

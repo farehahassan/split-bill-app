@@ -42,6 +42,17 @@ function registerShutdownHandlers(): void {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
 
+process.on("unhandledRejection", (reason: unknown) => {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  logger.error("Unhandled promise rejection; exiting", { error: message });
+  process.exit(1);
+});
+
+process.on("uncaughtException", (error: Error) => {
+  logger.error("Uncaught exception; exiting", { error: error.message });
+  process.exit(1);
+});
+
 start().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   logger.error("Failed to start the server", { error: message });

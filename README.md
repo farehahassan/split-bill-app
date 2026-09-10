@@ -1,13 +1,13 @@
 # Split Bill App — Monorepo
 
-**Hisab** — a premium Flutter expense-splitting app UI, plus project manuals.
+**Hisab** — a premium Flutter expense-splitting app, backed by a Node/TypeScript API.
 
 ## Layout
 
 ```text
 split-bill-app/
 ├── frontend/                 # Flutter app (Hisab) — see its README
-├── backend/                  # Backend code (placeholder — stack TBD)
+├── backend/                  # Node/Express/Prisma REST API — see its README
 └── manual/                   # Project guides & playbooks
     ├── frontend/             #   frontend development manual
     │   └── flutter_bloc_cubit_production_playbook.md
@@ -21,6 +21,6 @@ split-bill-app/
 - **Frontend playbook**: [`manual/frontend/flutter_bloc_cubit_production_playbook.md`](manual/frontend/flutter_bloc_cubit_production_playbook.md)
 - **Backend manual**: [`manual/backend/README.md`](manual/backend/README.md)
 
-The frontend currently runs on typed mock data (`frontend/lib/mock/mock_data.dart`).
-A shared `ApiClient` and repository abstractions are ready for wiring the real
-backend once it exists.
+The frontend is wired to the backend API via `frontend/lib/core/network/api_client.dart`.
+The typed mock data (`frontend/lib/mock/mock_data.dart`) is used only by the UI
+showcase feature; the real app screens read from the API.

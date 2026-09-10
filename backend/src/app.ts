@@ -41,29 +41,25 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     cors({
       origin: env.CORS_ORIGIN,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: [
-        "Content-Type",
-        "Authorization",
-        "Idempotency-Key",
-        "X-Request-Id",
-      ],
+      allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Request-Id"],
     }),
   );
-
-  app.use(apiLimiter(redis));
 
   app.use(requestId);
   app.use(requestHttpMetrics);
   app.use(requestCompletionLogger);
 
   app.use(express.json({ limit: EDGE_MAX_BODY_BYTES }));
-  app.use(express.urlencoded({ extended: true, limit: EDGE_MAX_BODY_BYTES }));
 
+  // Liveness/readiness and metrics endpoints are mounted before the rate
+  // limiter so orchestration probes and Prometheus scrapes are never throttled.
   app.use("/health", healthRoutes);
 
   if (env.METRICS_ENABLED === "true") {
     app.use("/metrics", metricsRoutes);
   }
+
+  app.use(apiLimiter(redis));
 
   app.use("/api/docs", docsRoutes);
 

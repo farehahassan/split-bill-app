@@ -68,7 +68,9 @@ export const METRIC_LABEL = {
   activityType: "type",
 } as const;
 
-const DEFAULT_HISTOGRAM_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10] as const;
+const DEFAULT_HISTOGRAM_BUCKETS = [
+  0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10,
+] as const;
 
 const METRIC_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
@@ -210,9 +212,7 @@ export class MetricsRegistry {
 
     for (const def of this.defs.values()) {
       lines.push(`# HELP ${def.name} ${def.help}`);
-      lines.push(
-        `# TYPE ${def.name} ${def.kind === "counter" ? "counter" : "histogram"}`,
-      );
+      lines.push(`# TYPE ${def.name} ${def.kind === "counter" ? "counter" : "histogram"}`);
 
       if (def.kind === "counter") {
         const series = this.counters.get(def.name);
@@ -224,7 +224,7 @@ export class MetricsRegistry {
         const buckets = def.buckets ?? DEFAULT_BUCKETS;
         const series = this.histograms.get(def.name);
         if (!series) continue;
-for (const [keys, entry] of series) {
+        for (const [keys, entry] of series) {
           let cumulative = 0;
           for (let i = 0; i < buckets.length; i += 1) {
             const bucket = buckets[i];

@@ -57,17 +57,17 @@ describe("Trust proxy configuration", () => {
     const app = createApp({ redis });
 
     // Same spoofed client twice → blocked on the second call.
-    expect((await request(app).get("/health").set("X-Forwarded-For", "203.0.113.7")).status).toBe(
-      HTTP_STATUSES.OK,
-    );
-    expect((await request(app).get("/health").set("X-Forwarded-For", "203.0.113.7")).status).toBe(
-      HTTP_STATUSES.TOO_MANY_REQUESTS,
-    );
+    expect(
+      (await request(app).get("/api/v1/groups").set("X-Forwarded-For", "203.0.113.7")).status,
+    ).toBe(HTTP_STATUSES.UNAUTHORIZED);
+    expect(
+      (await request(app).get("/api/v1/groups").set("X-Forwarded-For", "203.0.113.7")).status,
+    ).toBe(HTTP_STATUSES.TOO_MANY_REQUESTS);
 
     // A different forwarded client is unaffected.
-    expect((await request(app).get("/health").set("X-Forwarded-For", "198.51.100.9")).status).toBe(
-      HTTP_STATUSES.OK,
-    );
+    expect(
+      (await request(app).get("/api/v1/groups").set("X-Forwarded-For", "198.51.100.9")).status,
+    ).toBe(HTTP_STATUSES.UNAUTHORIZED);
   });
 });
 

@@ -15,6 +15,7 @@ class AppTextField extends StatelessWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.onChanged,
+    this.enabled = true,
   });
 
   final TextEditingController? controller;
@@ -28,6 +29,7 @@ class AppTextField extends StatelessWidget {
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final ValueChanged<String>? onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +40,7 @@ class AppTextField extends StatelessWidget {
       textInputAction: textInputAction,
       obscureText: obscureText,
       maxLines: maxLines,
+      enabled: enabled,
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,

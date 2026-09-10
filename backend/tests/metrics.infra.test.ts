@@ -9,14 +9,16 @@ vi.mock("@prisma/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@prisma/client")>();
   return {
     ...original,
-    PrismaClient: vi.fn(() => ({
-      $connect: vi.fn(),
-      $queryRaw: vi.fn(),
-      $disconnect: vi.fn(),
-      group: { findUnique: vi.fn() },
-      groupMember: { findUnique: vi.fn() },
-      groupSummary: { upsert: vi.fn(), findUnique: vi.fn() },
-    })),
+    PrismaClient: vi.fn(function () {
+      return {
+        $connect: vi.fn(),
+        $queryRaw: vi.fn(),
+        $disconnect: vi.fn(),
+        group: { findUnique: vi.fn() },
+        groupMember: { findUnique: vi.fn() },
+        groupSummary: { upsert: vi.fn(), findUnique: vi.fn() },
+      };
+    }),
   };
 });
 

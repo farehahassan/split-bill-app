@@ -55,8 +55,8 @@ describe("Rate limiting", () => {
     const app = createApp();
 
     for (let i = 0; i < 3; i++) {
-      const res = await request(app).get("/health");
-      expect(res.status).toBe(HTTP_STATUSES.OK);
+      const res = await request(app).get("/api/v1/groups");
+      expect(res.status).toBe(HTTP_STATUSES.UNAUTHORIZED);
     }
   });
 
@@ -65,10 +65,10 @@ describe("Rate limiting", () => {
     const app = createApp();
 
     for (let i = 0; i < 3; i++) {
-      await request(app).get("/health");
+      await request(app).get("/api/v1/groups");
     }
 
-    const blocked = await request(app).get("/health");
+    const blocked = await request(app).get("/api/v1/groups");
 
     expect(blocked.status).toBe(HTTP_STATUSES.TOO_MANY_REQUESTS);
     expect(blocked.body).toEqual({ success: false, message: "Too many requests" });
@@ -78,8 +78,8 @@ describe("Rate limiting", () => {
     setRateLimitEnv({ RATE_LIMIT_MAX: "1" });
     const app = createApp();
 
-    await request(app).get("/health");
-    const blocked = await request(app).get("/health");
+    await request(app).get("/api/v1/groups");
+    const blocked = await request(app).get("/api/v1/groups");
 
     expect(blocked.status).toBe(HTTP_STATUSES.TOO_MANY_REQUESTS);
     expect(Number(blocked.headers["ratelimit-limit"])).toBe(1);
@@ -91,14 +91,12 @@ describe("Rate limiting", () => {
     setRateLimitEnv({ RATE_LIMIT_MAX: "1", RATE_LIMIT_WINDOW_MS: "150" });
     const app = createApp();
 
-    expect((await request(app).get("/health")).status).toBe(HTTP_STATUSES.OK);
-    expect((await request(app).get("/health")).status).toBe(
-      HTTP_STATUSES.TOO_MANY_REQUESTS,
-    );
+    expect((await request(app).get("/api/v1/groups")).status).toBe(HTTP_STATUSES.UNAUTHORIZED);
+    expect((await request(app).get("/api/v1/groups")).status).toBe(HTTP_STATUSES.TOO_MANY_REQUESTS);
 
     await new Promise((resolve) => setTimeout(resolve, 250));
 
-    expect((await request(app).get("/health")).status).toBe(HTTP_STATUSES.OK);
+    expect((await request(app).get("/api/v1/groups")).status).toBe(HTTP_STATUSES.UNAUTHORIZED);
   });
 
   it("applies a stricter limit to authentication routes", async () => {
@@ -106,17 +104,25 @@ describe("Rate limiting", () => {
     const app = createApp();
 
     // Two unauthenticated requests hit the auth limiter but stay under its cap.
-    expect((await request(app).get("/api/v1/auth/me")).status).toBe(
-      HTTP_STATUSES.UNAUTHORIZED,
-    );
-    expect((await request(app).get("/api/v1/auth/me")).status).toBe(
-      HTTP_STATUSES.UNAUTHORIZED,
-    );
+    expect((await request(app).get("/api/v1/auth/me")).status).toBe(HTTP_STATUSES.UNAUTHORIZED);
+    expect((await request(app).get("/api/v1/auth/me")).status).toBe(HTTP_STATUSES.UNAUTHORIZED);
 
     // The third request exceeds the auth limit → 429 instead of 401.
     const blocked = await request(app).get("/api/v1/auth/me");
     expect(blocked.status).toBe(HTTP_STATUSES.TOO_MANY_REQUESTS);
     expect(blocked.body).toEqual({ success: false, message: "Too many requests" });
+  });
+
+  it("keeps guard endpoints reachable even after the limiter is exhausted", async () => {
+    setRateLimitEnv({ RATE_LIMIT_MAX: "2" });
+    const app = createApp();
+
+    await request(app).get("/api/v1/groups");
+    await request(app).get("/api/v1/groups");
+    expect((await request(app).get("/api/v1/groups")).status).toBe(HTTP_STATUSES.TOO_MANY_REQUESTS);
+
+    expect((await request(app).get("/health")).status).toBe(HTTP_STATUSES.OK);
+    expect((await request(app).get("/metrics")).status).toBe(HTTP_STATUSES.OK);
   });
 
   it("keeps a non-auth endpoint unaffected by auth-route traffic", async () => {
@@ -126,8 +132,8 @@ describe("Rate limiting", () => {
     await request(app).get("/api/v1/auth/me");
 
     // Non-auth routes are on the general limiter, not the auth limiter.
-    const res = await request(app).get("/health");
-    expect(res.status).toBe(HTTP_STATUSES.OK);
+    const res = await request(app).get("/api/v1/groups");
+    expect(res.status).toBe(HTTP_STATUSES.UNAUTHORIZED);
   });
 
   it("does not break existing error handling while under the limit", async () => {

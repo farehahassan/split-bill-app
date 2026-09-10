@@ -11,11 +11,13 @@ vi.mock("../src/modules/activity/activity.repository.js", async () => {
   >("../src/modules/activity/activity.repository.js");
   return {
     ...actual,
-    ActivityRepository: vi.fn(() => ({
-      findGroupById: vi.fn(),
-      isGroupMember: vi.fn(),
-      findActivityByGroupId: vi.fn(),
-    })),
+    ActivityRepository: vi.fn(function () {
+      return {
+        findGroupById: vi.fn(),
+        isGroupMember: vi.fn(),
+        findActivityByGroupId: vi.fn(),
+      };
+    }),
   };
 });
 
@@ -33,7 +35,7 @@ function storedEvent(overrides: Record<string, unknown> = {}) {
     groupId: "group-1",
     userId: "alice",
     type: "EXPENSE_ADDED" as const,
-    message: "added the expense \"Dinner\"",
+    message: 'added the expense "Dinner"',
     amountMinorUnits: 1000n,
     currencyCode: "PKR",
     occurredAt: new Date("2026-01-02T00:00:00Z"),
@@ -73,7 +75,7 @@ describe("ActivityService.getGroupActivity", () => {
       groupId: "group-1",
       userId: "alice",
       type: "EXPENSE_ADDED",
-      message: "added the expense \"Dinner\"",
+      message: 'added the expense "Dinner"',
       amountMinorUnits: 1000,
       currencyCode: "PKR",
       occurredAt: new Date("2026-01-02T00:00:00Z"),

@@ -13,13 +13,15 @@ vi.mock("../src/modules/groups/group.repository.js", async () => {
   );
   return {
     ...actual,
-    GroupRepository: vi.fn(() => ({
-      createGroupWithOwner: vi.fn(),
-      findGroupById: vi.fn(),
-      findUserById: vi.fn(),
-      isGroupMember: vi.fn(),
-      addGroupMember: vi.fn(),
-    })),
+    GroupRepository: vi.fn(function () {
+      return {
+        createGroupWithOwner: vi.fn(),
+        findGroupById: vi.fn(),
+        findUserById: vi.fn(),
+        isGroupMember: vi.fn(),
+        addGroupMember: vi.fn(),
+      };
+    }),
   };
 });
 
@@ -29,11 +31,13 @@ vi.mock("../src/modules/expenses/expense.repository.js", async () => {
   >("../src/modules/expenses/expense.repository.js");
   return {
     ...actual,
-    ExpenseRepository: vi.fn(() => ({
-      findGroupById: vi.fn(),
-      findGroupMemberIds: vi.fn(),
-      createExpenseWithSplits: vi.fn(),
-    })),
+    ExpenseRepository: vi.fn(function () {
+      return {
+        findGroupById: vi.fn(),
+        findGroupMemberIds: vi.fn(),
+        createExpenseWithSplits: vi.fn(),
+      };
+    }),
   };
 });
 
@@ -43,11 +47,13 @@ vi.mock("../src/modules/settlements/settlement.repository.js", async () => {
   >("../src/modules/settlements/settlement.repository.js");
   return {
     ...actual,
-    SettlementRepository: vi.fn(() => ({
-      findGroupById: vi.fn(),
-      findGroupMembers: vi.fn(),
-      createSettlement: vi.fn(),
-    })),
+    SettlementRepository: vi.fn(function () {
+      return {
+        findGroupById: vi.fn(),
+        findGroupMembers: vi.fn(),
+        createSettlement: vi.fn(),
+      };
+    }),
   };
 });
 
@@ -106,15 +112,11 @@ describe("Activity creation on domain operations", () => {
     const service = new GroupService(groupRepository);
     await service.addGroupMember("owner-1", "group-1", "member-1");
 
-    expect(groupRepository.addGroupMember).toHaveBeenCalledWith(
-      "group-1",
-      "member-1",
-      {
-        userId: "owner-1",
-        type: "MEMBER_ADDED",
-        message: "added Sana to the group",
-      },
-    );
+    expect(groupRepository.addGroupMember).toHaveBeenCalledWith("group-1", "member-1", {
+      userId: "owner-1",
+      type: "MEMBER_ADDED",
+      message: "added Sana to the group",
+    });
   });
 
   it("records an EXPENSE_ADDED event with the authenticated requester as actor", async () => {
