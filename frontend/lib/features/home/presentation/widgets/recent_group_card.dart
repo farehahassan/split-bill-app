@@ -3,15 +3,14 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/ui/animated_money_text.dart';
 import '../../../../core/ui/pressable_scale.dart';
-import '../../../../mock/mock_data.dart';
+import '../../../groups/data/models/group.dart';
 
-/// Card showing a recently active group with its total spent.
+/// Card showing a recently active group with its member count.
 class RecentGroupCard extends StatelessWidget {
   const RecentGroupCard({super.key, required this.group, this.onTap});
 
-  final MockGroup group;
+  final GroupSummary group;
   final VoidCallback? onTap;
 
   @override
@@ -31,7 +30,7 @@ class RecentGroupCard extends StatelessWidget {
                   color: AppColors.primarySoft,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(group.icon, color: AppColors.primary, size: 24),
+                child: const Icon(Icons.group_outlined, color: AppColors.primary, size: 24),
               ),
               const SizedBox(width: AppSpacing.medium),
               Expanded(
@@ -47,22 +46,16 @@ class RecentGroupCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${group.members} members',
+                      '${group.memberCount} members',
                       style: AppTextStyles.caption,
                     ),
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('Total Spent', style: AppTextStyles.caption),
-                  const SizedBox(height: 2),
-                  AnimatedMoneyText(
-                    amount: group.totalSpent,
-                    style: AppTextStyles.amount.copyWith(fontSize: 15),
-                  ),
-                ],
+              const Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: AppColors.textSecondary,
               ),
             ],
           ),

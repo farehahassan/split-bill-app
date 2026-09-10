@@ -1,17 +1,13 @@
-import 'package:flutter/material.dart';
-
-import '../../../../mock/mock_data.dart';
+import '../../data/models/activity_event.dart';
 
 /// Filter options for the activity feed.
-enum ActivityFilter { all, paid, received, settlements }
+enum ActivityFilter { all, expenses, settlements }
 
-/// Whether [activity] passes the given [filter].
-bool matchesFilter(MockActivity activity, ActivityFilter filter) {
-  final isSettlement = activity.icon == Icons.swap_horiz;
+/// Whether [event] passes the given [filter].
+bool activityMatches(ActivityEvent event, ActivityFilter filter) {
   return switch (filter) {
     ActivityFilter.all => true,
-    ActivityFilter.paid => !isSettlement && !activity.isInflow,
-    ActivityFilter.received => activity.isInflow && !isSettlement,
-    ActivityFilter.settlements => isSettlement,
+    ActivityFilter.expenses => event.isExpense,
+    ActivityFilter.settlements => event.isSettlement,
   };
 }

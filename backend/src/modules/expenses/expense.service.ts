@@ -55,6 +55,11 @@ export type CreateExpenseInput = {
   expenseDate?: string;
 };
 
+export interface ExpenseListPage {
+  expenses: ExpenseSummaryDto[];
+  pagination?: { page: number; limit: number; total: number };
+}
+
 export class ExpenseService {
   constructor(private repository: ExpenseRepository) {}
 
@@ -157,7 +162,16 @@ export class ExpenseService {
     return this.toDetailDto(expense);
   }
 
-  async getGroupExpenses(requesterId: string, groupId: string): Promise<ExpenseSummaryDto[]> {
+  /**
+   * Lists a group's expenses. Pagination is opt-in: the response only carries
+   * pagination metadata when the caller supplied `page`/`limit`, preserving the
+   * legacy "return everything" envelope for every other call.
+   */
+  async getGroupExpenses(
+    requesterId: string,
+    groupId: string,
+    pagination?: { page: number; limit: number },
+  ): Promise<ExpenseListPage> {
     const group = await this.repository.findGroupById(groupId);
     if (!group) {
       throw new NotFoundError(APP_ERRORS.GROUP_NOT_FOUND, "Group not found.");
@@ -165,8 +179,16 @@ export class ExpenseService {
 
     await this.assertMemberOfGroup(requesterId, groupId);
 
-    const expenses = await this.repository.findExpensesByGroupId(groupId);
-    return expenses.map((expense) => this.toSummaryDto(expense));
+    const { expenses, total } = await this.repository.findExpensesByGroupId(groupId, pagination);
+    const list = expenses.map((expense) => this.toSummaryDto(expense));
+
+    if (pagination) {
+      return {
+        expenses: list,
+        pagination: { page: pagination.page, limit: pagination.limit, total: total! },
+      };
+    }
+    return { expenses: list };
   }
 
   private async assertMemberOfGroup(requesterId: string, groupId: string): Promise<void> {

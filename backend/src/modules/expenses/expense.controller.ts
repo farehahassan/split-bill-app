@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { HTTP_STATUSES } from "../../constants/http-statuses.js";
+import type { PaginationQuery } from "../../utils/pagination.js";
 import { ExpenseService } from "./expense.service.js";
 import { ExpenseRepository } from "./expense.repository.js";
 
@@ -38,6 +39,19 @@ export async function getExpenseById(req: Request, res: Response): Promise<void>
 
 export async function getGroupExpenses(req: Request, res: Response): Promise<void> {
   const groupId = (req.params as { id: string }).id;
-  const expenses = await expenseService.getGroupExpenses(req.userId!, groupId);
-  res.status(HTTP_STATUSES.OK).json({ success: true, data: { expenses } });
+  const query = req.query as PaginationQuery;
+
+  const pagination =
+    query.page !== undefined || query.limit !== undefined
+      ? { page: query.page ?? 1, limit: query.limit ?? 20 }
+      : undefined;
+
+  const result = await expenseService.getGroupExpenses(req.userId!, groupId, pagination);
+
+  const payload: Record<string, unknown> = { success: true, data: { expenses: result.expenses } };
+  if (result.pagination) {
+    payload.pagination = result.pagination;
+  }
+
+  res.status(HTTP_STATUSES.OK).json(payload);
 }

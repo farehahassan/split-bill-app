@@ -10,3 +10,12 @@ desktop.ini
 
 # Logs
 *.log
+
+# Docker volumes (local data)
+pgdata/
+redisdata/
+
+# Environment files (never commit real credentials)
+.env
+.env.local
+.env.production

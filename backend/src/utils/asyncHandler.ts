@@ -1,10 +1,6 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 
-type AsyncRequestHandler = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => Promise<unknown>;
+type AsyncRequestHandler = (req: Request, res: Response, next: NextFunction) => Promise<unknown>;
 
 /**
  * Wraps an asynchronous Express request handler so that both synchronous

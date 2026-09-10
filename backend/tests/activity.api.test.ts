@@ -45,7 +45,7 @@ function storedEvent(overrides: Record<string, unknown> = {}) {
     groupId: "group-1",
     userId: "member-1",
     type: "EXPENSE_ADDED",
-    message: "added the expense \"Dinner\"",
+    message: 'added the expense "Dinner"',
     amountMinorUnits: 1000n,
     currencyCode: "PKR",
     occurredAt: new Date("2026-01-02T00:00:00Z"),

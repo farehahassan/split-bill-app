@@ -1,8 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import {
-  DistributedLock,
-  DistributedLockConflictError,
-} from "../src/redis/distributedLock.js";
+import { DistributedLock, DistributedLockConflictError } from "../src/redis/distributedLock.js";
 import { FakeRedis, FailingRedis } from "./helpers/fakeRedis.js";
 
 const LOCK_KEY = "lock:settlement:group:group-1";

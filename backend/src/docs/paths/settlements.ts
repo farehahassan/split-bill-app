@@ -3,6 +3,8 @@ import {
   groupIdPathParameter,
   settlementIdPathParameter,
   idempotencyKeyHeaderParameter,
+  pageQueryParameter,
+  limitQueryParameter,
 } from "../components/parameters.js";
 import { jsonResponse, componentResponse, successEnvelope } from "../helpers.js";
 
@@ -64,9 +66,24 @@ const settlementsPaths: Record<string, PathItemObject> = {
             success: true,
             data: {
               balances: [
-                { userId: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d", name: "Ahmed Raza", email: "ahmed@example.com", amountMinorUnits: 160 },
-                { userId: "b2d9c1e0-1a2b-4c3d-9e4f-5a6b7c8d9e0f", name: "Sana Malik", email: "sana@example.com", amountMinorUnits: -60 },
-                { userId: "7a7a7a7a-8b8b-4c4c-adad-1e1e1e1e1e1e", name: "Usman Tariq", email: "usman@example.com", amountMinorUnits: -100 },
+                {
+                  userId: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+                  name: "Ahmed Raza",
+                  email: "ahmed@example.com",
+                  amountMinorUnits: 160,
+                },
+                {
+                  userId: "b2d9c1e0-1a2b-4c3d-9e4f-5a6b7c8d9e0f",
+                  name: "Sana Malik",
+                  email: "sana@example.com",
+                  amountMinorUnits: -60,
+                },
+                {
+                  userId: "7a7a7a7a-8b8b-4c4c-adad-1e1e1e1e1e1e",
+                  name: "Usman Tariq",
+                  email: "usman@example.com",
+                  amountMinorUnits: -100,
+                },
               ],
             },
           },
@@ -121,9 +138,11 @@ const settlementsPaths: Record<string, PathItemObject> = {
       summary: "List a group's settlements",
       description:
         "Lists the group's settlements, newest first, with the sender and receiver. " +
-        "The authenticated user must be a member. Protected endpoint.",
+        "The authenticated user must be a member. Protected endpoint.\n\n" +
+        "Pagination is opt-in: passing `page` and/or `limit` (both capped at 50 per page) applies paging at the database level " +
+        "and adds a top-level `pagination` object with the current page, limit, and total. Without those parameters the full list is returned.",
       operationId: "listGroupSettlements",
-      parameters: [groupIdPathParameter],
+      parameters: [groupIdPathParameter, pageQueryParameter, limitQueryParameter],
       responses: {
         200: jsonResponse(
           "The group's settlements.",
@@ -131,6 +150,7 @@ const settlementsPaths: Record<string, PathItemObject> = {
             type: "object",
             properties: {
               settlements: { type: "array", items: ref("Settlement") },
+              pagination: ref("Pagination"),
             },
             required: ["settlements"],
           }),
@@ -157,11 +177,10 @@ const settlementsPaths: Record<string, PathItemObject> = {
       operationId: "getSettlement",
       parameters: [settlementIdPathParameter],
       responses: {
-        200: jsonResponse(
-          "The settlement.",
-          settlementData("Settlement"),
-          { success: true, data: { settlement: settlementExample } },
-        ),
+        200: jsonResponse("The settlement.", settlementData("Settlement"), {
+          success: true,
+          data: { settlement: settlementExample },
+        }),
         401: componentResponse("Unauthorized"),
         403: componentResponse("Forbidden"),
         404: componentResponse("NotFound"),

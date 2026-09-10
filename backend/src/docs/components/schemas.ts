@@ -108,7 +108,11 @@ export const refreshTokenRequestSchema: SchemaObject = {
   type: "object",
   description: "Presents an opaque refresh token to rotate the session.",
   properties: {
-    refreshToken: { type: "string", description: "A refresh token returned at issuance.", example: "<refresh-token>" },
+    refreshToken: {
+      type: "string",
+      description: "A refresh token returned at issuance.",
+      example: "<refresh-token>",
+    },
   },
   required: ["refreshToken"],
 };
@@ -116,7 +120,11 @@ export const refreshTokenRequestSchema: SchemaObject = {
 export const createGroupRequestSchema: SchemaObject = {
   type: "object",
   properties: {
-    name: { type: "string", description: "Group name. Trimmed, non-empty.", example: "Trip to Naran" },
+    name: {
+      type: "string",
+      description: "Group name. Trimmed, non-empty.",
+      example: "Trip to Naran",
+    },
   },
   required: ["name"],
 };
@@ -124,7 +132,11 @@ export const createGroupRequestSchema: SchemaObject = {
 export const updateGroupRequestSchema: SchemaObject = {
   type: "object",
   properties: {
-    name: { type: "string", description: "New group name. Trimmed, non-empty.", example: "Trip to Hunza" },
+    name: {
+      type: "string",
+      description: "New group name. Trimmed, non-empty.",
+      example: "Trip to Hunza",
+    },
   },
   required: ["name"],
 };
@@ -241,7 +253,11 @@ export const expenseSchema: SchemaObject = {
       ...minorUnitsSchema,
       description: `${minorUnitsSchema.description} The expense total.`,
     },
-    currencyCode: { type: "string", description: "ISO 4217 currency code. Always `PKR` today.", example: "PKR" },
+    currencyCode: {
+      type: "string",
+      description: "ISO 4217 currency code. Always `PKR` today.",
+      example: "PKR",
+    },
     splitType: {
       type: "string",
       enum: ["EQUAL", "EXACT"],
@@ -311,7 +327,11 @@ export const expenseParticipantInputSchema: SchemaObject = {
   description:
     "A participant in a new expense. For `EXACT` splits `amountMinorUnits` must be provided; for `EQUAL` splits it must be omitted.",
   properties: {
-    userId: { type: "string", format: "uuid", description: "A group member participating in the split." },
+    userId: {
+      type: "string",
+      format: "uuid",
+      description: "A group member participating in the split.",
+    },
     amountMinorUnits: {
       ...minorUnitsSchema,
       description: `${minorUnitsSchema.description} Required for EXACT splits, omitted for EQUAL splits.`,
@@ -334,11 +354,16 @@ export const createExpenseRequestSchema: SchemaObject = {
       ...minorUnitsSchema,
       description: `${minorUnitsSchema.description} The expense total.`,
     },
-    payerId: { type: "string", format: "uuid", description: "The member who paid for the expense." },
+    payerId: {
+      type: "string",
+      format: "uuid",
+      description: "The member who paid for the expense.",
+    },
     splitType: {
       type: "string",
       enum: ["EQUAL", "EXACT"],
-      description: "`EQUAL` divides the total evenly (remainder distributed to the first participants); `EXACT` uses the provided per-participant amounts.",
+      description:
+        "`EQUAL` divides the total evenly (remainder distributed to the first participants); `EXACT` uses the provided per-participant amounts.",
     },
     participants: {
       type: "array",
@@ -387,10 +412,15 @@ export const settlementSchema: SchemaObject = {
 
 export const createSettlementRequestSchema: SchemaObject = {
   type: "object",
-  description: "Records a settlement. Requires an `Idempotency-Key` header. Sender and receiver must differ.",
+  description:
+    "Records a settlement. Requires an `Idempotency-Key` header. Sender and receiver must differ.",
   properties: {
     payerId: { type: "string", format: "uuid", description: "The sending member." },
-    payeeId: { type: "string", format: "uuid", description: "The receiving member, different from `payerId`." },
+    payeeId: {
+      type: "string",
+      format: "uuid",
+      description: "The receiving member, different from `payerId`.",
+    },
     amountMinorUnits: minorUnitsSchema,
   },
   required: ["payerId", "payeeId", "amountMinorUnits"],
@@ -406,7 +436,8 @@ export const balanceSchema: SchemaObject = {
     email: { type: "string", format: "email", example: "ahmed@example.com" },
     amountMinorUnits: {
       type: "integer",
-      description: "Net balance in minor units. May be negative (net debtor) or positive (net creditor).",
+      description:
+        "Net balance in minor units. May be negative (net debtor) or positive (net creditor).",
       example: -60,
     },
   },
@@ -419,16 +450,21 @@ export const activityEventSchema: SchemaObject = {
   properties: {
     id: UuidRef,
     groupId: { type: "string", format: "uuid" },
-    userId: { type: "string", format: "uuid", description: "The user who performed the action (the actor)." },
+    userId: {
+      type: "string",
+      format: "uuid",
+      description: "The user who performed the action (the actor).",
+    },
     type: {
       type: "string",
       enum: ["EXPENSE_ADDED", "SETTLEMENT_ADDED", "GROUP_CREATED", "MEMBER_ADDED"],
     },
-    message: { type: "string", example: "added the expense \"Dinner\"" },
+    message: { type: "string", example: 'added the expense "Dinner"' },
     amountMinorUnits: {
       ...minorUnitsSchema,
       nullable: true,
-      description: `${minorUnitsSchema.description} Present only for financial events; ` +
+      description:
+        `${minorUnitsSchema.description} Present only for financial events; ` +
         "`null` for group and membership events.",
     },
     currencyCode: { type: "string", nullable: true, example: "PKR" },
@@ -463,7 +499,8 @@ export const paginationSchema: SchemaObject = {
 
 export const groupSummarySchema: SchemaObject = {
   type: "object",
-  description: "A derived, non-authoritative summary snapshot of a group, computed by the background worker.",
+  description:
+    "A derived, non-authoritative summary snapshot of a group, computed by the background worker.",
   properties: {
     id: UuidRef,
     groupId: { type: "string", format: "uuid" },
@@ -495,7 +532,11 @@ export const queuedJobSchema: SchemaObject = {
   properties: {
     jobId: { type: "string", format: "uuid", description: "The enqueued job's id." },
     type: { type: "string", enum: ["GROUP_SUMMARY_RECOMPUTE"], description: "The job type." },
-    status: { type: "string", enum: ["queued"], description: "Always `queued`: the job runs asynchronously." },
+    status: {
+      type: "string",
+      enum: ["queued"],
+      description: "Always `queued`: the job runs asynchronously.",
+    },
   },
   required: ["jobId", "type", "status"],
 };
@@ -505,14 +546,23 @@ export const errorBodySchema: SchemaObject = {
   description: "The standard API error envelope.",
   properties: {
     success: { type: "boolean", enum: [false], description: "Always false for error responses." },
-    message: { type: "string", description: "A human-readable error description.", example: "Group not found." },
+    message: {
+      type: "string",
+      description: "A human-readable error description.",
+      example: "Group not found.",
+    },
     errors: {
       type: "array",
-      description: "Field-level validation failures. Present only for Zod validation errors (HTTP 400).",
+      description:
+        "Field-level validation failures. Present only for Zod validation errors (HTTP 400).",
       items: {
         type: "object",
         properties: {
-          field: { type: "string", description: "Dotted path of the invalid field.", example: "body.email" },
+          field: {
+            type: "string",
+            description: "Dotted path of the invalid field.",
+            example: "body.email",
+          },
           message: { type: "string", example: "Invalid email address" },
         },
         required: ["field", "message"],
@@ -525,7 +575,11 @@ export const errorBodySchema: SchemaObject = {
 export const livenessResponseSchema: SchemaObject = {
   type: "object",
   properties: {
-    status: { type: "string", enum: ["ok"], description: "Always `ok` while the process is running." },
+    status: {
+      type: "string",
+      enum: ["ok"],
+      description: "Always `ok` while the process is running.",
+    },
   },
   required: ["status"],
 };
@@ -542,7 +596,11 @@ export const readinessUnavailableResponseSchema: SchemaObject = {
   type: "object",
   properties: {
     status: { type: "string", enum: ["unavailable"] },
-    message: { type: "string", description: "Why the service is not ready.", example: "Service is not ready yet." },
+    message: {
+      type: "string",
+      description: "Why the service is not ready.",
+      example: "Service is not ready yet.",
+    },
   },
   required: ["status", "message"],
 };

@@ -66,7 +66,9 @@ const IMPORTANT_SCHEMAS = [
   "ErrorBody",
 ];
 
-function operations(document: OpenApiDocument): Array<{ operationId: string; operation: OperationObject }> {
+function operations(
+  document: OpenApiDocument,
+): Array<{ operationId: string; operation: OperationObject }> {
   const result: Array<{ operationId: string; operation: OperationObject }> = [];
   for (const pathItem of Object.values(document.paths)) {
     for (const method of ["get", "post", "put", "delete", "patch"] as const) {
@@ -145,7 +147,8 @@ describe("OpenAPI document", () => {
         expect(operation.security, `${operationId} must be public`).toEqual([]);
       } else {
         expect(
-          operation.security === undefined || operation.security.every((req) => "bearerAuth" in req),
+          operation.security === undefined ||
+            operation.security.every((req) => "bearerAuth" in req),
           `${operationId} must require bearerAuth`,
         ).toBe(true);
       }
@@ -171,9 +174,14 @@ describe("OpenAPI document", () => {
 
     for (const { operationId, operation } of allOperations) {
       expect(operation.tags?.length, `${operationId} must declare a tag`).toBeGreaterThan(0);
-      expect(Object.keys(operation.responses).length, `${operationId} must declare responses`).toBeGreaterThan(0);
+      expect(
+        Object.keys(operation.responses).length,
+        `${operationId} must declare responses`,
+      ).toBeGreaterThan(0);
       for (const status of Object.keys(operation.responses)) {
-        expect(status, `${operationId} response ${status} must be a numeric status`).toMatch(/^\d{3}$/);
+        expect(status, `${operationId} response ${status} must be a numeric status`).toMatch(
+          /^\d{3}$/,
+        );
       }
     }
   });
@@ -217,15 +225,26 @@ describe("OpenAPI document", () => {
     ).toBe(true);
   });
 
-  it("documents pagination parameters for the activity feed", () => {
-    const activityFeed = document.paths["/api/v1/groups/{id}/activity"]?.get;
-    const parameters = activityFeed?.parameters ?? [];
+  it("documents pagination parameters for the paginated list endpoints", () => {
+    const paginatedListPaths = [
+      "/api/v1/groups/{id}/activity",
+      "/api/v1/groups/{id}/expenses",
+      "/api/v1/groups/{id}/settlements",
+    ];
 
-    const page = parameters.find((parameter) => "name" in parameter && parameter.name === "page");
-    const limit = parameters.find((parameter) => "name" in parameter && parameter.name === "limit");
+    for (const path of paginatedListPaths) {
+      const listOperation = document.paths[path]?.get;
+      expect(listOperation, `missing list operation for ${path}`).toBeDefined();
 
-    expect(page && "name" in page).toBe(true);
-    expect(limit && "name" in limit).toBe(true);
+      const parameters = listOperation?.parameters ?? [];
+      const page = parameters.find((parameter) => "name" in parameter && parameter.name === "page");
+      const limit = parameters.find(
+        (parameter) => "name" in parameter && parameter.name === "limit",
+      );
+
+      expect(page && "name" in page, `${path} must document the page parameter`).toBe(true);
+      expect(limit && "name" in limit, `${path} must document the limit parameter`).toBe(true);
+    }
   });
 
   it("resolves every $ref in the document", () => {

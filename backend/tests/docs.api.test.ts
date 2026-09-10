@@ -1,8 +1,16 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { HTTP_STATUSES } from "../src/constants/http-statuses.js";
 import type { OpenApiDocument, OperationObject } from "../src/docs/index.js";
+
+// The operation-probe test below hits the public readiness route, which checks
+// `isDatabaseReachable` before answering. Stub it so the probe never opens a
+// connection to a real Postgres instance with the unit-test credentials
+// (which would otherwise emit a noisy `prisma:error` during every local run).
+vi.mock("../src/db/prisma.js", () => ({
+  isDatabaseReachable: vi.fn(() => Promise.resolve(true)),
+}));
 
 const UUID_PLACEHOLDER = "00000000-0000-4000-8000-000000000000";
 
@@ -209,8 +217,7 @@ describe("API documentation routes", () => {
       for (const method of checkable) {
         const documentedMatch = Object.entries(document.paths).some(
           ([path, item]) =>
-            item[method.toLowerCase() as "get" | "post" | "put" | "delete"] &&
-            path.endsWith(leaf),
+            item[method.toLowerCase() as "get" | "post" | "put" | "delete"] && path.endsWith(leaf),
         );
         expect(
           documentedMatch,

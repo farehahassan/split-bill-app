@@ -264,32 +264,50 @@ describe("ExpenseService.createExpense", () => {
 });
 
 describe("ExpenseService.getGroupExpenses", () => {
-  it("returns expenses for a member", async () => {
+  it("returns expenses for a member without pagination metadata by default", async () => {
     repository.findGroupById.mockResolvedValue({ id: "group-1", name: "G", createdById: "owner" });
     repository.findGroupMemberIds.mockResolvedValue(["owner", "user-2"]);
-    repository.findExpensesByGroupId.mockResolvedValue([
-      {
-        id: "expense-1",
-        groupId: "group-1",
-        paidById: "owner",
-        description: "Dinner",
-        amountMinorUnits: 1000n,
-        currencyCode: "PKR",
-        splitType: "EQUAL" as const,
-        expenseDate: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        payer: { id: "owner", name: "Ahmed", email: "a@example.com" },
-        splitCount: 2,
-      },
-    ]);
+    repository.findExpensesByGroupId.mockResolvedValue({
+      expenses: [
+        {
+          id: "expense-1",
+          groupId: "group-1",
+          paidById: "owner",
+          description: "Dinner",
+          amountMinorUnits: 1000n,
+          currencyCode: "PKR",
+          splitType: "EQUAL" as const,
+          expenseDate: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          payer: { id: "owner", name: "Ahmed", email: "a@example.com" },
+          splitCount: 2,
+        },
+      ],
+    });
 
     const service = makeService();
     const result = await service.getGroupExpenses("owner", "group-1");
 
-    expect(repository.findExpensesByGroupId).toHaveBeenCalledWith("group-1");
-    expect(result[0].amountMinorUnits).toBe(1000);
-    expect(result[0].splitCount).toBe(2);
+    expect(repository.findExpensesByGroupId).toHaveBeenCalledWith("group-1", undefined);
+    expect(result.pagination).toBeUndefined();
+    expect(result.expenses[0].amountMinorUnits).toBe(1000);
+    expect(result.expenses[0].splitCount).toBe(2);
+  });
+
+  it("returns pagination metadata when paging options are supplied", async () => {
+    repository.findGroupById.mockResolvedValue({ id: "group-1", name: "G", createdById: "owner" });
+    repository.findGroupMemberIds.mockResolvedValue(["owner", "user-2"]);
+    repository.findExpensesByGroupId.mockResolvedValue({ expenses: [], total: 0 });
+
+    const service = makeService();
+    const result = await service.getGroupExpenses("owner", "group-1", { page: 2, limit: 10 });
+
+    expect(repository.findExpensesByGroupId).toHaveBeenCalledWith("group-1", {
+      page: 2,
+      limit: 10,
+    });
+    expect(result.pagination).toEqual({ page: 2, limit: 10, total: 0 });
   });
 
   it("throws NOT_FOUND when the group does not exist", async () => {

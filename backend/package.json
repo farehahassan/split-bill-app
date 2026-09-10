@@ -5,6 +5,7 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "tsx watch src/server.ts",
     "worker": "tsx src/worker.ts",
     "build": "tsc",
@@ -12,6 +13,7 @@
     "start:worker": "node dist/worker.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",

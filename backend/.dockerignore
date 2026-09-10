@@ -1,0 +1,36 @@
+node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker (avoid recursive copies)
+Dockerfile
+docker-compose*.yml
+
+# Documentation
+*.md
+LICENSE
+
+# CI
+.github
+
+# Tests (not needed in production image)
+tests
+vitest.config.ts
+eslint.config.js
+prettier.config.js

@@ -26,6 +26,7 @@ vi.mock("../src/db/prisma.js", async () => {
         create: vi.fn(),
         findUnique: vi.fn(),
         findMany: vi.fn(),
+        count: vi.fn(),
       },
     },
   };
@@ -108,6 +109,7 @@ describe("Expenses API", () => {
     mockPrisma.expense.create.mockReset();
     mockPrisma.expense.findUnique.mockReset();
     mockPrisma.expense.findMany.mockReset();
+    mockPrisma.expense.count.mockReset();
     app = createApp();
   });
 
@@ -329,6 +331,76 @@ describe("Expenses API", () => {
         .set("Authorization", `Bearer ${signToken(ownerId)}`);
 
       expect(res.status).toBe(HTTP_STATUSES.NOT_FOUND);
+    });
+
+    it("should return pagination metadata when page/limit are supplied", async () => {
+      mockPrisma.group.findUnique.mockResolvedValue(group);
+      mockPrisma.groupMember.findMany.mockResolvedValue([
+        { userId: ownerId },
+        { userId: payerId },
+        { userId: memberId },
+      ]);
+      mockPrisma.expense.count.mockResolvedValue(3);
+      mockPrisma.expense.findMany.mockResolvedValue([
+        {
+          id: "expense-1",
+          groupId: "group-1",
+          paidById: payerId,
+          description: "Dinner",
+          amountMinorUnits: 1000n,
+          currencyCode: "PKR",
+          splitType: "EQUAL",
+          expenseDate: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          payer: { id: payerId, name: "Payer", email: "payer@example.com" },
+          _count: { splits: 3 },
+        },
+      ]);
+
+      const res = await request(app)
+        .get("/api/v1/groups/group-1/expenses?page=1&limit=2")
+        .set("Authorization", `Bearer ${signToken(ownerId)}`);
+
+      expect(res.status).toBe(HTTP_STATUSES.OK);
+      expect(res.body.data.expenses).toHaveLength(1);
+      expect(res.body.pagination).toEqual({ page: 1, limit: 2, total: 3 });
+      expect(mockPrisma.expense.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 0, take: 2 }),
+      );
+      expect(mockPrisma.expense.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { groupId: "group-1" } }),
+      );
+    });
+
+    it("should default limit to 20 when only page is supplied", async () => {
+      mockPrisma.group.findUnique.mockResolvedValue(group);
+      mockPrisma.groupMember.findMany.mockResolvedValue([{ userId: ownerId }]);
+      mockPrisma.expense.count.mockResolvedValue(1);
+      mockPrisma.expense.findMany.mockResolvedValue([]);
+
+      const res = await request(app)
+        .get("/api/v1/groups/group-1/expenses?page=2")
+        .set("Authorization", `Bearer ${signToken(ownerId)}`);
+
+      expect(res.status).toBe(HTTP_STATUSES.OK);
+      expect(res.body.pagination).toEqual({ page: 2, limit: 20, total: 1 });
+    });
+
+    it("should return 400 for an out-of-range limit", async () => {
+      const res = await request(app)
+        .get("/api/v1/groups/group-1/expenses?limit=999")
+        .set("Authorization", `Bearer ${signToken(ownerId)}`);
+
+      expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
+    });
+
+    it("should return 400 for a non-positive page", async () => {
+      const res = await request(app)
+        .get("/api/v1/groups/group-1/expenses?page=0")
+        .set("Authorization", `Bearer ${signToken(ownerId)}`);
+
+      expect(res.status).toBe(HTTP_STATUSES.BAD_REQUEST);
     });
   });
 

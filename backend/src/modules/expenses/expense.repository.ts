@@ -1,9 +1,6 @@
 import type { Expense, ExpenseSplit, Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
-import {
-  createActivityEvent,
-  type ActivityEventInput,
-} from "../activity/activity.repository.js";
+import { createActivityEvent, type ActivityEventInput } from "../activity/activity.repository.js";
 
 export interface ExpenseCreateSplit {
   userId: string;
@@ -126,17 +123,25 @@ export class ExpenseRepository {
     });
   }
 
-  async findExpensesByGroupId(groupId: string): Promise<ExpenseWithSummary[]> {
-    const expenses = await prisma.expense.findMany({
-      where: { groupId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        payer: { select: safeUserSelect },
-        _count: { select: { splits: true } },
-      },
-    });
+  /**
+   * Returns the group's expenses, newest first, with the payer and split count.
+   *
+   * Without `pagination` the full list is returned (legacy behavior). When
+   * pagination is supplied the query applies skip/take at the database level,
+   * adds an `id` tie-breaker for a deterministic page order, and returns the
+   * matching total for the pagination metadata.
+   */
+  async findExpensesByGroupId(
+    groupId: string,
+    pagination?: { page: number; limit: number },
+  ): Promise<{ expenses: ExpenseWithSummary[]; total?: number }> {
+    const where = { groupId };
+    const include = {
+      payer: { select: safeUserSelect },
+      _count: { select: { splits: true } },
+    } satisfies Prisma.ExpenseInclude;
 
-    return expenses.map((expense) => ({
+    const mapRow = (expense: Prisma.ExpenseGetPayload<{ include: typeof include }>) => ({
       id: expense.id,
       groupId: expense.groupId,
       paidById: expense.paidById,
@@ -149,6 +154,28 @@ export class ExpenseRepository {
       updatedAt: expense.updatedAt,
       payer: expense.payer,
       splitCount: expense._count.splits,
-    }));
+    });
+
+    if (!pagination) {
+      const expenses = await prisma.expense.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        include,
+      });
+      return { expenses: expenses.map(mapRow) };
+    }
+
+    const [expenses, total] = await Promise.all([
+      prisma.expense.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        skip: (pagination.page - 1) * pagination.limit,
+        take: pagination.limit,
+        include,
+      }),
+      prisma.expense.count({ where }),
+    ]);
+
+    return { expenses: expenses.map(mapRow), total };
   }
 }
