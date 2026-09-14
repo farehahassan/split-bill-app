@@ -5,20 +5,24 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/ui/animated_money_text.dart';
 import '../../../../core/ui/pressable_scale.dart';
-import '../../../../mock/mock_data.dart';
+import '../../../../core/utils/money.dart';
+import '../../data/models/group.dart';
 
-/// Card for a group in the active-groups list, showing whether the user owes
-/// or is owed inside the group.
+/// Card for a group in the active-groups list. Shows the member count and,
+/// when [balance] is supplied, whether the user owes or is owed inside the
+/// group (positive balance = user is a creditor).
 class ActiveGroupCard extends StatelessWidget {
-  const ActiveGroupCard({super.key, required this.group, this.onTap});
+  const ActiveGroupCard({super.key, required this.group, this.balance, this.onTap});
 
-  final MockGroup group;
+  final GroupSummary group;
+
+  /// The signed net balance of the current user within [group]; `null` hides
+  /// the balance column entirely.
+  final Money? balance;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final owes = group.youOwe != null;
-    final balance = owes ? group.youOwe! : group.youAreOwed!;
     return PressableScale(
       onTap: onTap,
       child: Card(
@@ -31,14 +35,10 @@ class ActiveGroupCard extends StatelessWidget {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: owes ? AppColors.dangerSoft : AppColors.successSoft,
+                  color: AppColors.primarySoft,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  group.icon,
-                  color: owes ? AppColors.danger : AppColors.success,
-                  size: 24,
-                ),
+                child: const Icon(Icons.group_outlined, color: AppColors.primary, size: 24),
               ),
               const SizedBox(width: AppSpacing.medium),
               Expanded(
@@ -54,31 +54,32 @@ class ActiveGroupCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${group.members} members',
+                      '${group.memberCount} members',
                       style: AppTextStyles.caption,
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: AppSpacing.small),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    owes ? 'You owe' : 'You are owed',
-                    style: AppTextStyles.caption,
-                  ),
-                  const SizedBox(height: 2),
-                  AnimatedMoneyText(
-                    amount: balance,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: owes ? AppColors.danger : AppColors.success,
+              if (balance != null)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      balance!.minorUnits >= 0 ? 'You are owed' : 'You owe',
+                      style: AppTextStyles.caption,
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(height: 2),
+                    AnimatedMoneyText(
+                      amount: balance!.isNegative ? -balance! : balance!,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: balance!.minorUnits >= 0 ? AppColors.success : AppColors.danger,
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
