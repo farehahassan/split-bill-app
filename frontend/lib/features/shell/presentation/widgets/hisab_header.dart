@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/di/injection.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../mock/mock_data.dart';
+import '../../../auth/logic/auth_controller.dart';
 
 /// Standard screen header: user avatar, title (and optional subtitle), and a
-/// notification bell with an animated badge dot.
+/// notification bell with an animated badge dot. The avatar initials come from
+/// the authenticated user.
 class HisabHeader extends StatelessWidget {
   const HisabHeader({
     super.key,
@@ -17,6 +19,14 @@ class HisabHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
   final bool showBack;
+
+  String get _initials {
+    if (isRegistered<AuthController>()) {
+      final user = getIt<AuthController>().user;
+      if (user != null) return user.initials;
+    }
+    return 'H';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +40,7 @@ class HisabHeader extends StatelessWidget {
           ),
           const SizedBox(width: 4),
         ],
-        _Avatar(initials: currentUser.initials, size: 42),
+        _Avatar(initials: _initials, size: 42),
         const SizedBox(width: 12),
         Expanded(
           child: Column(

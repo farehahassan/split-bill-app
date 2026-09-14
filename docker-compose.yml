@@ -1,0 +1,50 @@
+# ---------------------------------------------------------------------------
+# docker-compose.yml — Local development infrastructure
+# ---------------------------------------------------------------------------
+# Provides PostgreSQL and Redis for local development.
+#
+# Usage:
+#   docker compose up -d          # start infrastructure
+#   docker compose down            # stop (data persists in volume)
+#   docker compose down -v         # stop AND delete data
+#
+# The API server and worker are NOT started by this file.
+# Run them locally with:
+#   npm run dev        (API with hot-reload)
+#   npm run worker     (background worker)
+# ---------------------------------------------------------------------------
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: splitease
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  redisdata:

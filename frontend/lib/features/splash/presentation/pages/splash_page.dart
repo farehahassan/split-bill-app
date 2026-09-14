@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../app/di/injection.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/ui/app_logo.dart';
+import '../../../auth/logic/auth_controller.dart';
 
-/// Dark-green splash screen with a springy logo entrance that auto-advances
-/// to the sign-in screen.
+/// Dark-green splash screen with a springy logo entrance. While the logo
+/// animates, any stored session is validated against the backend; the app
+/// then advances to the home shell (authenticated) or sign-in.
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
 
@@ -35,10 +38,20 @@ class _SplashPageState extends State<SplashPage>
   @override
   void initState() {
     super.initState();
-    _controller.forward();
-    Future<void>.delayed(const Duration(milliseconds: 2100), () {
-      if (mounted) context.go('/sign-in');
-    });
+    _restoreAndContinue(_controller.forward());
+  }
+
+  Future<void> _restoreAndContinue(TickerFuture animationDone) async {
+    // Give the logo animation a chance to be seen even on a fast network.
+    final auth = getIt<AuthController>();
+    final restore = auth.restoreSession();
+
+    // Wait for at least the minimum splash duration AND the session restore,
+    // then route based on the resulting auth state.
+    await Future.wait([animationDone, restore]);
+
+    if (!mounted) return;
+    context.go(auth.isAuthenticated ? '/shell' : '/sign-in');
   }
 
   @override

@@ -24,8 +24,7 @@ class ActivityFilterChips extends StatelessWidget {
         children: [
           for (final (value, label) in const [
             (ActivityFilter.all, 'All'),
-            (ActivityFilter.paid, 'You paid'),
-            (ActivityFilter.received, 'You received'),
+            (ActivityFilter.expenses, 'Expenses'),
             (ActivityFilter.settlements, 'Settlements'),
           ]) ...[
             _Chip(

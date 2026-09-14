@@ -29,7 +29,7 @@ class SettingRow extends StatelessWidget {
           Icon(icon, size: 22, color: AppColors.textSecondary),
           const SizedBox(width: AppSpacing.medium),
           Expanded(child: Text(label, style: AppTextStyles.bodyMedium)),
-          ?trailing,
+          if (trailing case final t?) t,
         ],
       ),
     );
