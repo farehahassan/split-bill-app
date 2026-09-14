@@ -2026,3 +2026,65 @@ data) and reads no external state, so it is safe for a well-known scrape target.
 For production behind a shared edge, either restrict the route at the
 gateway/proxy or set `METRICS_ENABLED=false`; the environment table documents
 both options.
+
+## Continuous Integration
+
+A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) automatically validates
+every pull request and push to `master`.
+
+### What CI validates
+
+| Check | Command | Fails CI on |
+|---|---|---|
+| Dependency install | `npm ci` | Install failure |
+| Prisma client generation | `npx prisma generate` | Generation failure |
+| Prisma schema validation | `npm run db:validate` | Invalid schema |
+| ESLint | `npm run lint` | Lint errors |
+| TypeScript type check | `npm run typecheck` | Type errors |
+| Unit tests | `npm test` | Test failures |
+| Database migrations | `npm run db:migrate` | Migration failure |
+| Integration tests (PostgreSQL + Redis) | `npm run test:integration` | Test failures against real infrastructure |
+| Security audit | `npm audit --audit-level=moderate` | Moderate+ vulnerabilities |
+| Production build | `npm run build` | Compilation errors |
+
+### Infrastructure services
+
+CI spins up disposable PostgreSQL 16 and Redis 7 containers for integration-test
+readiness. The service ports, database name, and credentials match the
+repository's own `backend/docker-compose.yml` integration defaults (PostgreSQL
+on `5433`, Redis on `6380`, database `splitease_integration`), so the real
+integration suite (`npm run test:integration`) runs against live PostgreSQL and
+Redis rather than in-memory fakes.
+
+### When CI runs
+
+- On every **pull request** targeting `master`
+- On every **push** to `master`
+
+### Running equivalent checks locally
+
+```bash
+cd backend
+npm ci
+npx prisma generate
+npm run db:validate
+npm run lint
+npm run typecheck
+npm test
+npm run db:migrate
+npm run test:integration
+npm audit --audit-level=moderate
+npm run build
+```
+
+### Troubleshooting
+
+- **Lint failures:** run `npm run lint:fix` to auto-fix.
+- **Type errors:** run `npm run typecheck` and fix the reported issues.
+- **Unit-test failures:** run `npm test` locally to reproduce. All unit tests use
+  mocked Prisma/Redis — no external services are required.
+- **Integration-test failures:** start the integration infrastructure first with
+  `docker compose -f backend/docker-compose.yml up -d --wait` (or
+  `npm run test:infra:up`), then run `npm run test:integration` to reproduce.
+- **Audit failures:** review `npm audit` output. Moderate+ advisories must be
+  resolved or explicitly acknowledged.

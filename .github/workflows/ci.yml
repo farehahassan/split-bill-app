@@ -1,0 +1,97 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Lint, Test & Build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: splitease
+          POSTGRES_PASSWORD: splitease_test
+          POSTGRES_DB: splitease_integration
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U splitease -d splitease_integration"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://splitease:splitease_test@localhost:5433/splitease_integration
+      REDIS_URL: redis://localhost:6380
+      JWT_SECRET: ci-test-jwt-secret-that-is-long-enough-for-validation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Validate Prisma schema
+        working-directory: backend
+        run: npm run db:validate
+
+      - name: Lint
+        working-directory: backend
+        run: npm run lint
+
+      - name: TypeScript type check
+        working-directory: backend
+        run: npm run typecheck
+
+      - name: Unit tests
+        working-directory: backend
+        run: npm test
+
+      - name: Apply database migrations
+        working-directory: backend
+        run: npm run db:migrate
+
+      - name: Integration tests (PostgreSQL + Redis)
+        working-directory: backend
+        run: npm run test:integration
+
+      - name: Security audit
+        working-directory: backend
+        run: npm audit --audit-level=moderate
+
+      - name: Production build
+        working-directory: backend
+        run: npm run build
