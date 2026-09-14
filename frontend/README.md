@@ -1,86 +1,114 @@
 # Hisab — Split Bill App
 
 A premium-looking Flutter expense-splitting app UI: **Hisab** (Urdu for
-*account / calculation*). This build is a fully interactive **UI showcase** —
-every screen from the design is implemented with rich mock data and
-animations. Nothing is wired to a backend yet; all data lives in
-[`lib/mock/mock_data.dart`](lib/mock/mock_data.dart).
+*account / calculation*). The Flutter client connects to the
+[HisabKitab backend](https://github.com/farehahassan/split-bill-app/tree/feat/production-deployment)
+via a documented REST API.
 
 ## Quick Start
 
 ```bash
 flutter pub get
-flutter run        # pick a device (android / ios / web / windows)
+flutter run
 ```
+
+### API configuration
+
+The backend base URL is injected at build time via `--dart-define`:
+
+```bash
+# Local development (default when no --dart-define is passed)
+flutter run --dart-define=API_BASE_URL=http://localhost:3000/api/v1
+
+# Production / staging — pass the deployed URL
+flutter run --dart-define=API_BASE_URL=https://<your-deployed-backend>/api/v1
+```
+
+When no value is provided, debug builds default to `http://localhost:3000/api/v1`
+and release builds fall back to a placeholder that must be overridden.
 
 ```bash
 dart format .      # formatting
-flutter analyze    # static analysis
-flutter test       # unit + widget tests (21 passing)
+flutter analyze    # static analysis — 0 issues
+flutter test       # unit + widget tests (55 passing)
 ```
 
-## The Screens
+## Screens
 
 | Flow | Screen | Highlights |
 | --- | --- | --- |
-| 1 | **Splash** | Dark-green brand screen; springy logo entrance, auto-advances |
-| 2 | **Sign In** | Staggered entrance, email/password validation, show/hide password, fake Google button, loading → home |
-| 3 | **Home Dashboard** | Greeting header, net-balance card with animated counters, Scan / Add actions, recent groups & activity |
-| 4 | **Groups** | Create Group / Join Group bottom sheets, active-groups list with owe/owed badges, group detail sheet |
-| 5 | **AI Receipt** | Scanned receipt card, total bill, tap-to-assign items to people, Split All, confirm flow with success state |
-| 6 | **Balances & Settlements** | You Owe / You Are Owed cards, friends list with working Settle flow, link to full activity feed |
-| 7 | **Activity** | Transactions grouped by date with working filter chips and detail sheets |
-| 8 | **Profile** | User card, stats, settings with live switch, sign out |
-
-The shell uses a custom bottom navigation bar with a prominent center
-**Add** button that pushes the receipt flow.
-
-## Responsive Design
-
-- **Adaptive layout** — every page renders inside `ResponsiveContent`
-  (`core/ui/responsive_content.dart`), which centers content in a 560dp column
-  on tablets/desktop while filling phones edge to edge.
-- **Width scaling** — `Responsive` (`core/utils/responsive.dart`) derives a
-  scale factor from the 390dp design baseline and applies it to page padding,
-  chips, and key component sizes (clamped 0.85–1.25×).
-- **Window size classes** — `isCompact` (<600dp) / `isMedium` / `isExpanded`
-  (≥840dp) follow Material 3 guidance for future adaptive layouts.
-- **Accessible text** — system text scaling is respected up to 1.3× so the
-  layout never breaks at extreme accessibility settings.
-- Verified by a widget test that renders the full flow on a 1000×1000dp
-  tablet viewport with zero overflows.
-
-## Animations
-
-- **Entrance** — reusable staggered fade + slide-up (`core/ui/entrance.dart`)
-- **PressableScale** — tactile press-down + springy release on every card/button
-- **AnimatedMoneyText** — amounts count up on load and re-target when they change
-- **Tab switching** — cross-fade + slide in the shell
-- **Route transitions** — soft fade + slide-up on every push
-- **Micro-interactions** — animated selection chips, checkmark badges, gradient FAB,
-  success states on confirm/settle, animated amount changes after settling
+| 1 | **Splash** | Dark-green brand screen; springy logo entrance, session restore |
+| 2 | **Sign In / Sign Up** | Real auth via POST /auth/login, error banners, session persistence |
+| 3 | **Home Dashboard** | Greeting from user profile, net-balance card, recent groups & activity — all from backend |
+| 4 | **Groups** | Live group list, create group, group detail with members/expenses, add expense (equal splits) |
+| 5 | **AI Receipt** | Scanned receipt card (UI scaffold — camera/scanner integration TBD) |
+| 6 | **Balances** | Group-scoped balances, settle with idempotent POST, SnackBar retry, settlement history |
+| 7 | **Activity** | Paginated activity feed with group chips + filter chips (All / Expenses / Settlements) |
+| 8 | **Profile** | Live user profile, stats, real sign-out |
 
 ## Architecture
 
 ```
 Presentation (pages / widgets / bottom sheets)
         ↓
-Mock data (lib/mock/mock_data.dart — typed, immutable seed data)
+Data layer (models / remote data sources / repositories)
         ↓
-core/ (theme tokens, reusable UI widgets, Money utilities, errors)
+Core (ApiClient, AuthTokenStore, error mapping, Money utilities)
+        ↓
+Backend REST API (REST / JSON / Prisma + PostgreSQL)
 ```
 
-- **Feature-first** folders under `lib/features/<screen>/presentation/`.
-- **Money** is stored in integer minor units (`core/utils/money.dart`) and
-  formatted as whole PKR, e.g. `PKR 1,250` / `-PKR 1,250`; splits use integer
-  arithmetic with explicit remainder handling.
-- **Theme** tokens live in `core/theme/` (colors, spacing, radii, text styles)
-  and are centralized in `AppTheme.light` — change one value to re-skin.
-- Reusable UI lives in `core/ui/` (`AppButton`, `AppTextField`, `AppLogo`,
-  `Entrance`, `PressableScale`, `AnimatedMoneyText`, …).
-- Playbook: [`docs/playbook.md`](docs/playbook.md) (kept from the original
-  production setup; shared `ApiClient`, `AppFailure` errors and `LocalStorage`
-  remain in `core/` for when a backend is added).
+- **Feature-first** folders under `lib/features/<feature>/`.
+- **DI** via `get_it` — `configureDependencies()` in `app/di/injection.dart`
+  accepts an optional `ApiClient` for test injection.
+- **Auth flow** — `AuthController` (ChangeNotifier) manages session state;
+  `SplashPage` restores the session; `GoRouter` enforces auth redirects.
+- **Money** is stored in integer minor units (`core/utils/money.dart`) —
+  formatted as whole PKR; splits use integer arithmetic.
+- **Idempotency** — settlement creation sends a client-generated
+  `Idempotency-Key` header (8–128 chars); the key is reused on retries.
+
+## Backend Contracts
+
+| Method | Endpoint | Response envelope |
+| --- | --- | --- |
+| POST | `/auth/register` | `{user, token, refreshToken}` |
+| POST | `/auth/login` | `{user, token, refreshToken}` |
+| POST | `/auth/refresh` | `{user, token, refreshToken}` (rotates) |
+| POST | `/auth/logout` | `{message}` |
+| GET | `/auth/me` | `{user}` |
+| GET | `/groups` | `{groups: [...]}` |
+| POST | `/groups` | `{group: {...}}` |
+| GET | `/groups/:id` | `{group: {...}}` |
+| POST | `/groups/:id/members` | `{member: {...}}` |
+| GET | `/groups/:id/balances` | `{balances: [...]}` |
+| POST | `/groups/:id/expenses` | `{expense: {...}}` |
+| GET | `/groups/:id/expenses` | `{expenses: [...]}` |
+| POST | `/groups/:id/settlements` | `{settlement: {...}}` |
+| GET | `/groups/:id/settlements` | `{settlements: [...]}` |
+| GET | `/groups/:id/activity?page=&limit=` | `{events: [...]}` + `pagination` |
+
+## Tests
+
+- `test/core/api_client_test.dart` — token attachment, 401 refresh/retry, expiry
+- `test/core/api_envelope_test.dart` — envelope unwrap + pagination
+- `test/core/api_exception_mapper_test.dart` — HTTP/network error mapping
+- `test/core/app_config_test.dart` — default base URL
+- `test/core/auth_token_store_test.dart` — session CRUD
+- `test/core/idempotency_key_test.dart` — format + uniqueness
+- `test/core/money_test.dart` — parsing, arithmetic, split remainder rules
+- `test/features/data_contract_test.dart` — data source contracts for all features
+- `test/widget/app_smoke_test.dart` — full live flow with fake HTTP backend
+
+## Responsive Design
+
+- **Adaptive layout** — every page renders inside `ResponsiveContent`
+  (`core/ui/responsive_content.dart`), which centers content in a 560dp column
+  on tablets/desktop while filling phones edge to edge.
+- **Width scaling** — `Responsive` derives a scale factor from the 390dp design
+  baseline (clamped 0.85–1.25x).
+- Verified by a widget test that renders the full flow on a 1000x1000dp
+  tablet viewport with zero overflows.
 
 ## Project Structure
 
@@ -89,32 +117,35 @@ lib/
 ├── main.dart
 ├── app/
 │   ├── app.dart                  # MaterialApp.router (theme + router)
-│   ├── di/injection.dart         # shared infra (ApiClient, LocalStorage)
-│   └── router/app_router.dart    # routes + fade-slide transitions
+│   ├── di/injection.dart         # get_it composition root
+│   └── router/app_router.dart    # GoRouter + auth redirect
 ├── core/
-│   ├── constants/  errors/  network/  storage/
-│   ├── theme/      # colors, spacing, text styles, theme
-│   ├── ui/         # reusable widgets + animation primitives
-│   └── utils/      # Money, splitEqually
-├── mock/
-│   └── mock_data.dart            # all showcase data + models
+│   ├── config/    # AppConfig (API_BASE_URL)
+│   ├── constants/ # AppTextStyles
+│   ├── errors/    # AppFailure hierarchy
+│   ├── network/   # ApiClient, ApiEnvelope, AuthTokenStore, IdempotencyKey
+│   ├── storage/   # LocalStorage (SharedPreferences wrapper)
+│   ├── theme/     # colors, spacing, text styles
+│   ├── ui/        # reusable widgets + animation primitives
+│   └── utils/     # Money, splitEqually
 └── features/
-    ├── splash/     auth/    shell/    home/    groups/
-    ├── receipt/    balances/         activity/  profile/
-    └── (each: presentation/pages + widgets)
+    ├── activity/      # data/ (model, datasource, repo) + presentation/
+    ├── auth/          # data/ + logic/AuthController + presentation/
+    ├── balances/      # data/ + presentation/
+    ├── expenses/      # data/ + presentation/
+    ├── groups/        # data/ + presentation/
+    ├── home/          # presentation/
+    ├── profile/       # presentation/
+    ├── shell/         # MainShell + HisabHeader
+    ├── splash/        # presentation/
+    └── receipt/       # presentation/ (UI scaffold)
 ```
 
-## Tests
+## Known Limitations
 
-- `test/core/money_test.dart` — parsing, arithmetic, split remainder rules
-  (e.g. PKR 1000 / 3 → 334 / 333 / 333).
-- `test/core/api_exception_mapper_test.dart` — HTTP/network error mapping.
-- `test/widget/app_smoke_test.dart` — full flow: splash → sign in → home,
-  plus bottom-nav tab switching.
-
-## Roadmap Ideas
-
-- Wire the receipt screen to real camera/gallery scanning (see playbook §17).
-- Replace mock data with a backend via the shared `ApiClient` (playbook §10).
-- Auth with secure token storage behind the sign-in screen.
-- Settlements that actually zero out balances across friends.
+- Token storage uses `SharedPreferences` (plain text on disk). The abstraction
+  layer (`AuthTokenStore` → `LocalStorage`) is designed for a drop-in swap to
+  `flutter_secure_storage` for encrypted at-rest storage on rooted devices.
+- The receipt flow is a UI scaffold — camera/scanner integration is TBD.
+- Activity creation errors (stderr from get_it) are non-fatal — the catch block
+  degrades gracefully in the home page.

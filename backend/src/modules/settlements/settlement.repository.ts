@@ -8,10 +8,7 @@ import {
 } from "../idempotency/idempotency.constants.js";
 import { reconcileIdempotencyRecord, type IdempotencyContext } from "../idempotency/reconcile.js";
 import type { ExpenseForBalance, SettlementForBalance } from "./balance.util.js";
-import {
-  createActivityEvent,
-  type ActivityEventInput,
-} from "../activity/activity.repository.js";
+import { createActivityEvent, type ActivityEventInput } from "../activity/activity.repository.js";
 
 export interface SafeUser {
   id: string;
@@ -132,7 +129,7 @@ export class SettlementRepository {
     return settlements;
   }
 
-/**
+  /**
    * Creates a settlement and its settlement-added activity event atomically,
    * protected against duplicates by the idempotency record.
    */
@@ -223,12 +220,39 @@ export class SettlementRepository {
     });
   }
 
-  findSettlementsByGroupId(groupId: string): Promise<SettlementRecord[]> {
-    return prisma.settlement.findMany({
-      where: { groupId },
-      orderBy: { settledAt: "desc" },
-      include: settlementInclude,
-    });
+  /**
+   * Returns the group's settlements, newest first, with sender and receiver.
+   *
+   * Without `pagination` the full list is returned (legacy behavior). When
+   * pagination is supplied the query applies skip/take at the database level,
+   * adds an `id` tie-breaker for a deterministic page order, and returns the
+   * matching total for the pagination metadata.
+   */
+  async findSettlementsByGroupId(
+    groupId: string,
+    pagination?: { page: number; limit: number },
+  ): Promise<{ settlements: SettlementRecord[]; total?: number }> {
+    if (!pagination) {
+      const settlements = await prisma.settlement.findMany({
+        where: { groupId },
+        orderBy: { settledAt: "desc" },
+        include: settlementInclude,
+      });
+      return { settlements };
+    }
+
+    const [settlements, total] = await Promise.all([
+      prisma.settlement.findMany({
+        where: { groupId },
+        orderBy: [{ settledAt: "desc" }, { id: "asc" }],
+        skip: (pagination.page - 1) * pagination.limit,
+        take: pagination.limit,
+        include: settlementInclude,
+      }),
+      prisma.settlement.count({ where: { groupId } }),
+    ]);
+
+    return { settlements, total };
   }
 
   private async replaySettlement(

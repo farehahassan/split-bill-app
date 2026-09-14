@@ -36,7 +36,11 @@ export function jsonContent(schema: Schema, example?: unknown): MediaTypeObject 
 }
 
 /** A success response as a media-type object containing the envelope schema. */
-export function jsonResponse(description: string, schema: Schema, example?: unknown): ResponseObject {
+export function jsonResponse(
+  description: string,
+  schema: Schema,
+  example?: unknown,
+): ResponseObject {
   return {
     description,
     content: {

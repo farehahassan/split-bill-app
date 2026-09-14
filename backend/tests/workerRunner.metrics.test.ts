@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { z } from "zod";
 
-import {
-  JobQueue,
-  PermanentJobFailureError,
-} from "../src/queues/jobQueue.js";
+import { JobQueue, PermanentJobFailureError } from "../src/queues/jobQueue.js";
 import type { JobRegistry } from "../src/queues/jobRegistry.js";
 import { JOB_TYPES } from "../src/queues/job.types.js";
 import { WorkerRunner } from "../src/queues/workerRunner.js";

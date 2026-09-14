@@ -53,13 +53,17 @@ describe("GroupService", () => {
       const service = makeService();
       const result = await service.createGroup("owner-1", { name: "Trip to Naran" });
 
-      expect(repository.createGroupWithOwner).toHaveBeenCalledWith("owner-1", {
-        name: "Trip to Naran",
-      }, expect.objectContaining({
-        userId: "owner-1",
-        type: "GROUP_CREATED",
-        message: "created the group",
-      }));
+      expect(repository.createGroupWithOwner).toHaveBeenCalledWith(
+        "owner-1",
+        {
+          name: "Trip to Naran",
+        },
+        expect.objectContaining({
+          userId: "owner-1",
+          type: "GROUP_CREATED",
+          message: "created the group",
+        }),
+      );
       expect(result).toEqual({
         id: group.id,
         name: group.name,

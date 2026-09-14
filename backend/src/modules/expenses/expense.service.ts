@@ -1,4 +1,4 @@
-import { APP_ERRORS } from "../../constants/app-errors.js";
+﻿import { APP_ERRORS } from "../../constants/app-errors.js";
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../errors/app.error.js";
 import { METRIC, metrics } from "../../metrics/registry.js";
 import {
@@ -54,6 +54,11 @@ export type CreateExpenseInput = {
   participants: Array<{ userId: string; amountMinorUnits?: number }>;
   expenseDate?: string;
 };
+
+export interface ExpenseListPage {
+  expenses: ExpenseSummaryDto[];
+  pagination?: { page: number; limit: number; total: number };
+}
 
 export type UpdateExpenseInput = {
   description?: string;
@@ -314,7 +319,11 @@ export class ExpenseService {
     return splits;
   }
 
-  async getGroupExpenses(requesterId: string, groupId: string): Promise<ExpenseSummaryDto[]> {
+  async getGroupExpenses(
+    requesterId: string,
+    groupId: string,
+    pagination?: { page: number; limit: number },
+  ): Promise<ExpenseListPage> {
     const group = await this.repository.findGroupById(groupId);
     if (!group) {
       throw new NotFoundError(APP_ERRORS.GROUP_NOT_FOUND, "Group not found.");
@@ -322,8 +331,16 @@ export class ExpenseService {
 
     await this.assertMemberOfGroup(requesterId, groupId);
 
-    const expenses = await this.repository.findExpensesByGroupId(groupId);
-    return expenses.map((expense) => this.toSummaryDto(expense));
+    const { expenses, total } = await this.repository.findExpensesByGroupId(groupId, pagination);
+    const list = expenses.map((expense) => this.toSummaryDto(expense));
+
+    if (pagination) {
+      return {
+        expenses: list,
+        pagination: { page: pagination.page, limit: pagination.limit, total: total! },
+      };
+    }
+    return { expenses: list };
   }
 
   private async assertMemberOfGroup(requesterId: string, groupId: string): Promise<void> {

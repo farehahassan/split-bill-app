@@ -8,11 +8,20 @@ const uuidPathParameter = (name: string, resource: string): ParameterObject => (
   schema: { type: "string", format: "uuid" },
 });
 
-export const groupIdPathParameter: ParameterObject = uuidPathParameter("id", "group's UUID identifier.");
+export const groupIdPathParameter: ParameterObject = uuidPathParameter(
+  "id",
+  "group's UUID identifier.",
+);
 
-export const expenseIdPathParameter: ParameterObject = uuidPathParameter("id", "expense's UUID identifier.");
+export const expenseIdPathParameter: ParameterObject = uuidPathParameter(
+  "id",
+  "expense's UUID identifier.",
+);
 
-export const settlementIdPathParameter: ParameterObject = uuidPathParameter("id", "settlement's UUID identifier.");
+export const settlementIdPathParameter: ParameterObject = uuidPathParameter(
+  "id",
+  "settlement's UUID identifier.",
+);
 
 export const memberIdPathParameter: ParameterObject = uuidPathParameter(
   "memberId",

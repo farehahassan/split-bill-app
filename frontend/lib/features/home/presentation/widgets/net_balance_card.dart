@@ -6,17 +6,27 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/ui/animated_money_text.dart';
 import '../../../../core/ui/pressable_scale.dart';
 import '../../../../core/utils/money.dart';
-import '../../../../mock/mock_data.dart';
 
 /// Net balance summary card: overall balance plus what the user owes and is
-/// owed, with animated counters.
+/// owed (aggregated across known groups), with animated counters.
 class NetBalanceCard extends StatelessWidget {
-  const NetBalanceCard({super.key});
+  const NetBalanceCard({
+    super.key,
+    required this.net,
+    required this.owes,
+    required this.owed,
+    this.onTap,
+  });
+
+  final Money net;
+  final Money owes;
+  final Money owed;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return PressableScale(
-      onTap: () {},
+      onTap: onTap,
       child: Card(
         margin: EdgeInsets.zero,
         child: Padding(
@@ -27,9 +37,9 @@ class NetBalanceCard extends StatelessWidget {
               const Text('NET BALANCE', style: AppTextStyles.labelSmall),
               const SizedBox(height: AppSpacing.small),
               AnimatedMoneyText(
-                amount: const Money(netBalanceMinorUnits),
+                amount: net,
                 style: AppTextStyles.amountLarge.copyWith(
-                  color: AppColors.danger,
+                  color: net.isNegative ? AppColors.danger : AppColors.success,
                   fontSize: 32,
                 ),
               ),
@@ -41,7 +51,7 @@ class NetBalanceCard extends StatelessWidget {
                   Expanded(
                     child: _BalanceColumn(
                       label: "You Owe",
-                      amount: const Money(youOweMinorUnits),
+                      amount: owes,
                       color: AppColors.danger,
                     ),
                   ),
@@ -49,7 +59,7 @@ class NetBalanceCard extends StatelessWidget {
                   Expanded(
                     child: _BalanceColumn(
                       label: "You're Owed",
-                      amount: const Money(youAreOwedMinorUnits),
+                      amount: owed,
                       color: AppColors.success,
                     ),
                   ),

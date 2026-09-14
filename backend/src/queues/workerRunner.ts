@@ -14,7 +14,8 @@ export interface WorkerRunnerOptions {
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const formatError = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+const formatError = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 /**
  * Polls the queue for every registered job type and runs claimed jobs. Keeps a

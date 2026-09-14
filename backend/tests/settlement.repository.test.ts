@@ -21,7 +21,10 @@ vi.mock("../src/db/prisma.js", async () => {
 });
 
 import { prisma } from "../src/db/prisma.js";
-import { SettlementRepository, type SettlementCreateData } from "../src/modules/settlements/settlement.repository.js";
+import {
+  SettlementRepository,
+  type SettlementCreateData,
+} from "../src/modules/settlements/settlement.repository.js";
 import type { IdempotencyContext } from "../src/modules/idempotency/reconcile.js";
 import { APP_ERRORS } from "../src/constants/app-errors.js";
 import { HTTP_STATUSES } from "../src/constants/http-statuses.js";
@@ -183,9 +186,7 @@ describe("SettlementRepository.createSettlement (idempotent)", () => {
 
   it("rejects a key already owned by a different user", async () => {
     const tx = makeTx();
-    tx.idempotencyRecord.findUnique.mockResolvedValue(
-      idempotencyRecordRow({ userId: "owner-1" }),
-    );
+    tx.idempotencyRecord.findUnique.mockResolvedValue(idempotencyRecordRow({ userId: "owner-1" }));
     mockPrisma.$transaction.mockImplementation(runTransaction(tx));
 
     const repository = makeRepository();
@@ -200,9 +201,7 @@ describe("SettlementRepository.createSettlement (idempotent)", () => {
 
   it("rejects a retry while the original request is still in progress", async () => {
     const tx = makeTx();
-    tx.idempotencyRecord.findUnique.mockResolvedValue(
-      idempotencyRecordRow({ status: "PENDING" }),
-    );
+    tx.idempotencyRecord.findUnique.mockResolvedValue(idempotencyRecordRow({ status: "PENDING" }));
     mockPrisma.$transaction.mockImplementation(runTransaction(tx));
 
     const repository = makeRepository();
@@ -265,9 +264,9 @@ describe("SettlementRepository.createSettlement (idempotent)", () => {
     mockPrisma.$transaction.mockImplementation(runTransaction(tx));
 
     const repository = makeRepository();
-    await expect(
-      repository.createSettlement(createData, idempotency, activity),
-    ).rejects.toThrow("db boom");
+    await expect(repository.createSettlement(createData, idempotency, activity)).rejects.toThrow(
+      "db boom",
+    );
     expect(tx.idempotencyRecord.update).not.toHaveBeenCalled();
   });
 });

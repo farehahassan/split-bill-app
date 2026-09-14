@@ -233,17 +233,33 @@ describe("SettlementService.createSettlement", () => {
 });
 
 describe("SettlementService.getGroupSettlements", () => {
-  it("returns only settlements belonging to the requested group", async () => {
+  it("returns only settlements belonging to the requested group without pagination metadata by default", async () => {
     repository.findGroupById.mockResolvedValue(group);
     repository.findGroupMembers.mockResolvedValue(members(memberIds));
-    repository.findSettlementsByGroupId.mockResolvedValue([storedSettlement()]);
+    repository.findSettlementsByGroupId.mockResolvedValue({ settlements: [storedSettlement()] });
 
     const service = makeService();
     const result = await service.getGroupSettlements("alice", "group-1");
 
-    expect(repository.findSettlementsByGroupId).toHaveBeenCalledWith("group-1");
-    expect(result).toHaveLength(1);
-    expect(result[0].amountMinorUnits).toBe(500);
+    expect(repository.findSettlementsByGroupId).toHaveBeenCalledWith("group-1", undefined);
+    expect(result.pagination).toBeUndefined();
+    expect(result.settlements).toHaveLength(1);
+    expect(result.settlements[0].amountMinorUnits).toBe(500);
+  });
+
+  it("returns pagination metadata when paging options are supplied", async () => {
+    repository.findGroupById.mockResolvedValue(group);
+    repository.findGroupMembers.mockResolvedValue(members(memberIds));
+    repository.findSettlementsByGroupId.mockResolvedValue({ settlements: [], total: 7 });
+
+    const service = makeService();
+    const result = await service.getGroupSettlements("alice", "group-1", { page: 1, limit: 5 });
+
+    expect(repository.findSettlementsByGroupId).toHaveBeenCalledWith("group-1", {
+      page: 1,
+      limit: 5,
+    });
+    expect(result.pagination).toEqual({ page: 1, limit: 5, total: 7 });
   });
 
   it("throws NOT_FOUND when the group does not exist", async () => {

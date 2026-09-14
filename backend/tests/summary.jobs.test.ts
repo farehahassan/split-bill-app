@@ -20,9 +20,7 @@ import {
   groupSummaryRegistration,
   processGroupSummaryRecomputeJob,
 } from "../src/modules/summary/summary.jobs.js";
-import type {
-  GroupSummaryPayload,
-} from "../src/modules/summary/summary.jobs.js";
+import type { GroupSummaryPayload } from "../src/modules/summary/summary.jobs.js";
 
 const mockPrisma = vi.mocked(prisma);
 

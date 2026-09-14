@@ -189,7 +189,12 @@ export class JobQueue {
    * payload is rewritten with the new attempt count and a fresh TTL. If the
    * payload already expired, the stale queue membership is dropped instead.
    */
-  async retryAfterFailure(type: JobType, jobId: string, attempts: number, delayMs: number): Promise<void> {
+  async retryAfterFailure(
+    type: JobType,
+    jobId: string,
+    attempts: number,
+    delayMs: number,
+  ): Promise<void> {
     const raw = await this.redis.get(this.dataKey(jobId));
     if (raw === null) {
       await this.redis.zrem(this.queueKey(type), jobId);
@@ -205,7 +210,12 @@ export class JobQueue {
     }
 
     const updated = { ...envelope, attempts };
-    await this.redis.set(this.dataKey(jobId), JSON.stringify(updated), "PX", this.config.payloadTtlMs);
+    await this.redis.set(
+      this.dataKey(jobId),
+      JSON.stringify(updated),
+      "PX",
+      this.config.payloadTtlMs,
+    );
     await this.redis.zadd(this.queueKey(type), Date.now() + delayMs, jobId);
     await this.redis.del(this.inflightKey(jobId));
   }

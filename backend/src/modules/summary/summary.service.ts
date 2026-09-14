@@ -1,18 +1,11 @@
 import { APP_ERRORS } from "../../constants/app-errors.js";
 import { HTTP_STATUSES } from "../../constants/http-statuses.js";
-import {
-  AppError,
-  ForbiddenError,
-  NotFoundError,
-} from "../../errors/app.error.js";
+import { AppError, ForbiddenError, NotFoundError } from "../../errors/app.error.js";
 import { JOB_TYPES } from "../../queues/job.types.js";
 import { getJobQueue, type JobQueue } from "../../queues/jobQueue.js";
 import { METRIC, metrics } from "../../metrics/registry.js";
 import { logger } from "../../utils/logger.js";
-import {
-  SummaryRepository,
-  type GroupSummaryRecord,
-} from "./summary.repository.js";
+import { SummaryRepository, type GroupSummaryRecord } from "./summary.repository.js";
 
 export interface GroupSummaryDto {
   id: string;

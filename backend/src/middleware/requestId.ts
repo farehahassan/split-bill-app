@@ -1,10 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 
-import {
-  REQUEST_ID_HEADER,
-  sanitizeRequestId,
-} from "../utils/requestId.js";
+import { REQUEST_ID_HEADER, sanitizeRequestId } from "../utils/requestId.js";
 
 /**
  * Assigns a request ID to every HTTP request and sets the `X-Request-Id`

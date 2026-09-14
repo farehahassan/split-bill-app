@@ -43,16 +43,12 @@ export function edgeRequestGuard(): RequestHandler {
     const target = `${req.method} ${req.originalUrl ?? req.url}`;
 
     if (hasControlCharacters(target)) {
-      res
-        .status(HTTP_STATUSES.NOT_FOUND)
-        .json({ success: false, message: "Endpoint not found." });
+      res.status(HTTP_STATUSES.NOT_FOUND).json({ success: false, message: "Endpoint not found." });
       return;
     }
 
     if ((req.originalUrl ?? req.url).length > EDGE_MAX_URL_LENGTH) {
-      res
-        .status(HTTP_STATUSES.NOT_FOUND)
-        .json({ success: false, message: "Endpoint not found." });
+      res.status(HTTP_STATUSES.NOT_FOUND).json({ success: false, message: "Endpoint not found." });
       return;
     }
 

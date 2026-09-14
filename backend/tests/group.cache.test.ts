@@ -126,9 +126,7 @@ describe("GroupCache", () => {
   it("does not throw when the cache write fails", async () => {
     const cache = new GroupCache(new RedisCacheStore(new FailingRedis()), 300);
 
-    await expect(
-      cache.setCachedGroupById("group-1", buildGroup()),
-    ).resolves.toBeUndefined();
+    await expect(cache.setCachedGroupById("group-1", buildGroup())).resolves.toBeUndefined();
   });
 
   it("does not throw when the cache invalidation fails", async () => {

@@ -126,9 +126,7 @@ describe("Redis-backed rate limiting", () => {
     const app = createApp({ redis: new FakeRedis() });
 
     expect((await request(app).get("/health")).status).toBe(HTTP_STATUSES.OK);
-    expect((await request(app).get("/health")).status).toBe(
-      HTTP_STATUSES.TOO_MANY_REQUESTS,
-    );
+    expect((await request(app).get("/health")).status).toBe(HTTP_STATUSES.TOO_MANY_REQUESTS);
 
     await new Promise((resolve) => setTimeout(resolve, 250));
 

@@ -1,5 +1,9 @@
 import type { PathItemObject, Schema } from "../openapi.types.js";
-import { groupIdPathParameter, pageQueryParameter, limitQueryParameter } from "../components/parameters.js";
+import {
+  groupIdPathParameter,
+  pageQueryParameter,
+  limitQueryParameter,
+} from "../components/parameters.js";
 import { jsonResponse, componentResponse } from "../helpers.js";
 
 export const ACTIVITY_TAG = "Activity";
@@ -43,7 +47,7 @@ const activityPaths: Record<string, PathItemObject> = {
                   groupId: "550e8400-e29b-41d4-a716-446655440000",
                   userId: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
                   type: "EXPENSE_ADDED",
-                  message: "added the expense \"Dinner\"",
+                  message: 'added the expense "Dinner"',
                   amountMinorUnits: 1000,
                   currencyCode: "PKR",
                   occurredAt: "2026-01-15T18:35:00.000Z",

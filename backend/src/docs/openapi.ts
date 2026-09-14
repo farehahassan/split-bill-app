@@ -120,7 +120,9 @@ export function createOpenApiDocument(): OpenApiDocument {
       description: API_DOCUMENTATION_DESCRIPTION,
       version: packageJson.version,
     },
-    servers: [{ url: "/", description: "Same origin as the documentation UI (the running backend)." }],
+    servers: [
+      { url: "/", description: "Same origin as the documentation UI (the running backend)." },
+    ],
     tags: [
       { name: "Health", description: "Liveness and readiness probes." },
       { name: "Metrics", description: "Prometheus metrics endpoint." },

@@ -36,9 +36,7 @@ describe("Request ID middleware", () => {
     const res = await request(app).get("/health");
 
     const id = res.headers["x-request-id"] as string;
-    expect(id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 
   it("returns distinct request IDs for separate requests", async () => {
@@ -58,18 +56,14 @@ describe("Request ID middleware", () => {
     const res = await request(app).get("/health").set("X-Request-Id", "a".repeat(200));
 
     const id = res.headers["x-request-id"] as string;
-    expect(id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 
   it("falls back to a generated ID for an empty header", async () => {
     const res = await request(app).get("/health").set("X-Request-Id", "");
 
     const id = res.headers["x-request-id"] as string;
-    expect(id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 
   it("includes X-Request-Id on 404 error responses", async () => {

@@ -89,10 +89,10 @@ export class DistributedLock {
         token = await this.acquire(key);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        logger.warn(
-          "Distributed lock is unavailable; running the operation without coordination",
-          { lockKey: key, error: message },
-        );
+        logger.warn("Distributed lock is unavailable; running the operation without coordination", {
+          lockKey: key,
+          error: message,
+        });
         return operation();
       }
 
