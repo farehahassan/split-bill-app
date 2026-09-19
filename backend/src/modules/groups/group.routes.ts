@@ -25,6 +25,7 @@ import {
   createSettlementBodySchema,
   settlementGroupParamsSchema,
 } from "../settlements/validators.js";
+import { paginationQuerySchema } from "../../utils/pagination.js";
 import {
   createSettlement,
   getGroupBalances,
@@ -85,7 +86,7 @@ router.post(
 router.get(
   "/:id/expenses",
   authenticate,
-  validate({ params: expenseTargetParamsSchema }),
+  validate({ params: expenseTargetParamsSchema, query: paginationQuerySchema }),
   asyncHandler(getGroupExpenses),
 );
 
@@ -107,7 +108,7 @@ router.post(
 router.get(
   "/:id/settlements",
   authenticate,
-  validate({ params: settlementGroupParamsSchema }),
+  validate({ params: settlementGroupParamsSchema, query: paginationQuerySchema }),
   asyncHandler(getGroupSettlements),
 );
 

@@ -3,6 +3,8 @@ import {
   groupIdPathParameter,
   settlementIdPathParameter,
   idempotencyKeyHeaderParameter,
+  pageQueryParameter,
+  limitQueryParameter,
 } from "../components/parameters.js";
 import { jsonResponse, componentResponse, successEnvelope } from "../helpers.js";
 
@@ -121,9 +123,11 @@ const settlementsPaths: Record<string, PathItemObject> = {
       summary: "List a group's settlements",
       description:
         "Lists the group's settlements, newest first, with the sender and receiver. " +
-        "The authenticated user must be a member. Protected endpoint.",
+        "The authenticated user must be a member. Protected endpoint.\n\n" +
+        "Pagination is opt-in: passing `page` and/or `limit` (both capped at 50 per page) applies paging at the database level " +
+        "and adds a top-level `pagination` object with the current page, limit, and total. Without those parameters the full list is returned.",
       operationId: "listGroupSettlements",
-      parameters: [groupIdPathParameter],
+      parameters: [groupIdPathParameter, pageQueryParameter, limitQueryParameter],
       responses: {
         200: jsonResponse(
           "The group's settlements.",
@@ -131,6 +135,7 @@ const settlementsPaths: Record<string, PathItemObject> = {
             type: "object",
             properties: {
               settlements: { type: "array", items: ref("Settlement") },
+              pagination: ref("Pagination"),
             },
             required: ["settlements"],
           }),

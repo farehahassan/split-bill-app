@@ -1,5 +1,10 @@
 import type { PathItemObject, Schema } from "../openapi.types.js";
-import { groupIdPathParameter, expenseIdPathParameter } from "../components/parameters.js";
+import {
+  groupIdPathParameter,
+  expenseIdPathParameter,
+  pageQueryParameter,
+  limitQueryParameter,
+} from "../components/parameters.js";
 import { jsonResponse, componentResponse, successEnvelope } from "../helpers.js";
 
 export const EXPENSES_TAG = "Expenses";
@@ -112,9 +117,11 @@ const expensesPaths: Record<string, PathItemObject> = {
       summary: "List a group's expenses",
       description:
         "Lists the group's expenses, newest first, with the payer and a split count (individual splits are omitted). " +
-        "The authenticated user must be a member. Protected endpoint.",
+        "The authenticated user must be a member. Protected endpoint.\n\n" +
+        "Pagination is opt-in: passing `page` and/or `limit` (both capped at 50 per page) applies paging at the database level " +
+        "and adds a top-level `pagination` object with the current page, limit, and total. Without those parameters the full list is returned.",
       operationId: "listGroupExpenses",
-      parameters: [groupIdPathParameter],
+      parameters: [groupIdPathParameter, pageQueryParameter, limitQueryParameter],
       responses: {
         200: jsonResponse(
           "The group's expenses.",
@@ -122,6 +129,7 @@ const expensesPaths: Record<string, PathItemObject> = {
             type: "object",
             properties: {
               expenses: { type: "array", items: ref("ExpenseSummary") },
+              pagination: ref("Pagination"),
             },
             required: ["expenses"],
           }),

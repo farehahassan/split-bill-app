@@ -12,19 +12,21 @@ vi.mock("../src/modules/groups/group.repository.js", async () => {
   );
   return {
     ...actual,
-    GroupRepository: vi.fn(() => ({
-      createGroupWithOwner: vi.fn(),
-      findGroupsByUserId: vi.fn(),
-      findGroupById: vi.fn(),
-      findGroupByIdWithMembers: vi.fn(),
-      findUserById: vi.fn(),
-      isGroupMember: vi.fn(),
-      updateGroup: vi.fn(),
-      deleteGroup: vi.fn(),
-      addGroupMember: vi.fn(),
-      findGroupMember: vi.fn(),
-      removeGroupMember: vi.fn(),
-    })),
+    GroupRepository: vi.fn(function () {
+      return {
+        createGroupWithOwner: vi.fn(),
+        findGroupsByUserId: vi.fn(),
+        findGroupById: vi.fn(),
+        findGroupByIdWithMembers: vi.fn(),
+        findUserById: vi.fn(),
+        isGroupMember: vi.fn(),
+        updateGroup: vi.fn(),
+        deleteGroup: vi.fn(),
+        addGroupMember: vi.fn(),
+        findGroupMember: vi.fn(),
+        removeGroupMember: vi.fn(),
+      };
+    }),
   };
 });
 

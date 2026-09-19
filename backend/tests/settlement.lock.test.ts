@@ -19,11 +19,13 @@ vi.mock("../src/modules/settlements/settlement.repository.js", async () => {
   >("../src/modules/settlements/settlement.repository.js");
   return {
     ...actual,
-    SettlementRepository: vi.fn(() => ({
-      findGroupById: vi.fn(),
-      findGroupMembers: vi.fn(),
-      createSettlement: vi.fn(),
-    })),
+    SettlementRepository: vi.fn(function () {
+      return {
+        findGroupById: vi.fn(),
+        findGroupMembers: vi.fn(),
+        createSettlement: vi.fn(),
+      };
+    }),
   };
 });
 

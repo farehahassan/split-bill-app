@@ -132,10 +132,14 @@ describe("transactional integrity (PostgreSQL)", () => {
     await createTestGroup(owner.id);
 
     const error = await capturesError(() => prisma.user.delete({ where: { id: owner.id } }));
-    // PostgreSQL reports RESTRICT violations as restrict_violation (23001),
-    // which Prisma surfaces as an unknown request error — not a P-code.
-    expect(error).toBeInstanceOf(Error);
-    expect((error as Error).message).toContain("RESTRICT");
+    // PostgreSQL rejects the delete with a RESTRICT foreign-key violation.
+    // On PostgreSQL 16/17 this is SQLSTATE 23503 (foreign_key_violation), which
+    // Prisma maps to the P2003 known request error and names the blocking
+    // constraint in the message — not the literal word "RESTRICT", which is why
+    // we pin the structured code and the constraint that Prisma/PostgreSQL report.
+    expect(error).toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+    expect((error as Prisma.PrismaClientKnownRequestError).code).toBe("P2003");
+    expect((error as Error).message).toContain("Group_createdById_fkey");
     expect(await prisma.user.findUnique({ where: { id: owner.id } })).not.toBeNull();
   });
 

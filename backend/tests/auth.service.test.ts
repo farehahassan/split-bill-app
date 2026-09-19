@@ -15,20 +15,22 @@ vi.mock("../src/modules/auth/auth.repository.js", async () => {
   );
   return {
     ...actual,
-    AuthRepository: vi.fn(() => ({
-      findByEmail: vi.fn(),
-      findById: vi.fn(),
-      create: vi.fn(),
-      findRefreshTokenByHash: vi.fn(),
-      createRefreshToken: vi.fn(),
-      revokeRefreshTokenById: vi.fn(),
-      rotateRefreshToken: vi.fn(),
-      createUserWithAuthData: vi.fn(),
-      createAuthToken: vi.fn(),
-      findAuthTokenByHash: vi.fn(),
-      consumeVerificationTokenAndVerifyUser: vi.fn(),
-      consumePasswordResetTokenAndUpdatePassword: vi.fn(),
-    })),
+    AuthRepository: vi.fn(function () {
+      return {
+        findByEmail: vi.fn(),
+        findById: vi.fn(),
+        create: vi.fn(),
+        findRefreshTokenByHash: vi.fn(),
+        createRefreshToken: vi.fn(),
+        revokeRefreshTokenById: vi.fn(),
+        rotateRefreshToken: vi.fn(),
+        createUserWithAuthData: vi.fn(),
+        createAuthToken: vi.fn(),
+        findAuthTokenByHash: vi.fn(),
+        consumeVerificationTokenAndVerifyUser: vi.fn(),
+        consumePasswordResetTokenAndUpdatePassword: vi.fn(),
+      };
+    }),
   };
 });
 
@@ -38,10 +40,12 @@ vi.mock("../src/modules/email/email.service.js", async () => {
   );
   return {
     ...actual,
-    EmailService: vi.fn(() => ({
-      sendVerificationEmail: vi.fn(async () => undefined),
-      sendPasswordResetEmail: vi.fn(async () => undefined),
-    })),
+    EmailService: vi.fn(function () {
+      return {
+        sendVerificationEmail: vi.fn(async () => undefined),
+        sendPasswordResetEmail: vi.fn(async () => undefined),
+      };
+    }),
   };
 });
 

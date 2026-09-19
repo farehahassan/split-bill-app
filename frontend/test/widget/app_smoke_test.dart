@@ -1,13 +1,86 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:split_bill_app/app/app.dart';
+import 'package:split_bill_app/app/di/injection.dart';
 import 'package:split_bill_app/app/router/app_router.dart';
+import 'package:split_bill_app/core/network/api_client.dart';
+import 'package:split_bill_app/core/storage/secure_storage.dart';
+
+import '../helpers/fake_http_adapter.dart';
 
 /// Pumps until all finite entrance animations and staggered delays finish.
 Future<void> settleAnimations(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.pump(const Duration(seconds: 1));
   await tester.pumpAndSettle();
+}
+
+FakeResponse? Function(RequestOptions options) scriptedBackend() {
+  final now = '2026-09-10T10:00:00Z';
+  return (options) {
+    final path = options.path;
+    if (options.method == 'POST' && path == '/auth/login') {
+      return FakeResponse(
+        200,
+        {
+          'success': true,
+          'data': {
+            'user': {'id': 'u1', 'name': 'Ahmed Raza', 'email': 'ahmed@example.com'},
+            'token': 'access-1',
+            'refreshToken': 'refresh-1',
+          },
+        },
+      );
+    }
+    if (options.method == 'GET' && path == '/auth/me') {
+      return FakeResponse(
+        200,
+        {
+          'success': true,
+          'data': {
+            'user': {'id': 'u1', 'name': 'Ahmed Raza', 'email': 'ahmed@example.com'},
+          },
+        },
+      );
+    }
+    if (options.method == 'GET' && path == '/groups') {
+      return FakeResponse(200, {
+        'success': true,
+        'data': {
+          'groups': <Object?>[
+            {
+              'id': 'g1',
+              'name': 'Trip to Naran',
+              'createdById': 'u1',
+              'memberCount': 3,
+              'createdAt': now,
+              'updatedAt': now,
+            },
+          ],
+        },
+      });
+    }
+    if (options.method == 'GET' && path == '/groups/g1/balances') {
+      return FakeResponse(200, {
+        'success': true,
+        'data': {
+          'balances': <Object?>[
+            {'userId': 'u1', 'name': 'Ahmed Raza', 'email': 'ahmed@example.com', 'amountMinorUnits': 0},
+          ],
+        },
+      });
+    }
+    if (options.method == 'GET' && path == '/groups/g1/activity') {
+      return FakeResponse(200, {
+        'success': true,
+        'data': {'events': <Object?>[]},
+        'pagination': {'page': 1, 'limit': 2, 'total': 0},
+      });
+    }
+    return null;
+  };
 }
 
 Future<void> signIn(WidgetTester tester) async {
@@ -20,6 +93,17 @@ Future<void> signIn(WidgetTester tester) async {
 }
 
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    getIt.reset();
+    final dio = Dio(BaseOptions(baseUrl: 'http://test.local'));
+    dio.httpClientAdapter = FakeHttpAdapter(scriptedBackend());
+    await configureDependencies(
+      apiClient: ApiClient(baseUrl: 'http://test.local', dio: dio),
+      secureStorage: InMemorySecureStorage(),
+    );
+  });
+
   testWidgets('splash → sign in → home dashboard', (tester) async {
     await tester.pumpWidget(SplitBillApp(router: createAppRouter()));
 
@@ -27,7 +111,7 @@ void main() {
     expect(find.text('Hisab'), findsOneWidget);
     expect(find.text('Keep your splits clear.'), findsOneWidget);
 
-    // Advance past the splash auto-navigation timer.
+    // Advance past the splash restore + auto-navigation.
     await tester.pump(const Duration(milliseconds: 2500));
     await settleAnimations(tester);
 
@@ -37,7 +121,7 @@ void main() {
 
     await signIn(tester);
 
-    // Home dashboard with mock data.
+    // Home dashboard with real (scripted) data.
     expect(find.text('NET BALANCE'), findsOneWidget);
     expect(find.text('Recent Groups'), findsOneWidget);
     expect(find.text('Trip to Naran'), findsOneWidget);
@@ -54,13 +138,13 @@ void main() {
     await settleAnimations(tester);
     expect(find.text('Active Groups'), findsOneWidget);
     expect(find.text('Create Group'), findsOneWidget);
+    expect(find.text('Trip to Naran'), findsOneWidget);
 
-    // Activity tab shows balances & settlements.
+    // Activity tab shows group balances & settlements.
     await tester.tap(find.text('Activity'));
     await settleAnimations(tester);
     expect(find.text('Balances'), findsOneWidget);
-    expect(find.text('Friends'), findsOneWidget);
-    expect(find.text('Ali Raza'), findsOneWidget);
+    expect(find.text('Trip to Naran'), findsWidgets);
   });
 
   testWidgets('renders without overflow on a tablet-sized screen', (

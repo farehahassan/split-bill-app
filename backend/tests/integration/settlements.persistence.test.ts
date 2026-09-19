@@ -253,10 +253,10 @@ describe("settlement persistence + idempotency (PostgreSQL + Redis)", () => {
       idempotencyFor({ key, userId: ownerId, groupId, payerId: ownerId, payeeId: memberAId, amountMinorUnits: 5000 }),
     );
 
-    const settlements = await service.getGroupSettlements(ownerId, groupId);
-    expect(settlements).toHaveLength(1);
-    expect(settlements[0]!.payer.id).toBe(ownerId);
-    expect(settlements[0]!.payee.id).toBe(memberAId);
-    expect(settlements[0]!.amountMinorUnits).toBe(5000);
+    const result = await service.getGroupSettlements(ownerId, groupId);
+    expect(result.settlements).toHaveLength(1);
+    expect(result.settlements[0]!.payer.id).toBe(ownerId);
+    expect(result.settlements[0]!.payee.id).toBe(memberAId);
+    expect(result.settlements[0]!.amountMinorUnits).toBe(5000);
   });
 });

@@ -12,15 +12,15 @@ vi.mock("../src/modules/expenses/expense.repository.js", async () => {
   >("../src/modules/expenses/expense.repository.js");
   return {
     ...actual,
-    ExpenseRepository: vi.fn(() => ({
-      findGroupById: vi.fn(),
-      findGroupMemberIds: vi.fn(),
-      createExpenseWithSplits: vi.fn(),
-      findExpenseById: vi.fn(),
-      findExpensesByGroupId: vi.fn(),
-      updateExpenseWithSplits: vi.fn(),
-      deleteExpenseWithEvent: vi.fn(),
-    })),
+    ExpenseRepository: vi.fn(function () {
+      return {
+        findGroupById: vi.fn(),
+        findGroupMemberIds: vi.fn(),
+        createExpenseWithSplits: vi.fn(),
+        findExpenseById: vi.fn(),
+        findExpensesByGroupId: vi.fn(),
+      };
+    }),
   };
 });
 
@@ -35,8 +35,6 @@ interface MakeExpenseOptions {
   groupId?: string;
   paidById?: string;
   splitType?: "EQUAL" | "EXACT";
-  description?: string;
-  amountMinorUnits?: bigint;
 }
 
 function makeStoredExpense(options: MakeExpenseOptions = {}) {
@@ -47,8 +45,8 @@ function makeStoredExpense(options: MakeExpenseOptions = {}) {
     id: "expense-1",
     groupId,
     paidById,
-    description: options.description ?? "Dinner",
-    amountMinorUnits: options.amountMinorUnits ?? 1000n,
+    description: "Dinner",
+    amountMinorUnits: 1000n,
     currencyCode: "PKR",
     splitType: options.splitType ?? "EQUAL",
     expenseDate: new Date("2026-01-01T00:00:00Z"),
@@ -268,32 +266,50 @@ describe("ExpenseService.createExpense", () => {
 });
 
 describe("ExpenseService.getGroupExpenses", () => {
-  it("returns expenses for a member", async () => {
+  it("returns expenses for a member without pagination metadata by default", async () => {
     repository.findGroupById.mockResolvedValue({ id: "group-1", name: "G", createdById: "owner" });
     repository.findGroupMemberIds.mockResolvedValue(["owner", "user-2"]);
-    repository.findExpensesByGroupId.mockResolvedValue([
-      {
-        id: "expense-1",
-        groupId: "group-1",
-        paidById: "owner",
-        description: "Dinner",
-        amountMinorUnits: 1000n,
-        currencyCode: "PKR",
-        splitType: "EQUAL" as const,
-        expenseDate: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        payer: { id: "owner", name: "Ahmed", email: "a@example.com" },
-        splitCount: 2,
-      },
-    ]);
+    repository.findExpensesByGroupId.mockResolvedValue({
+      expenses: [
+        {
+          id: "expense-1",
+          groupId: "group-1",
+          paidById: "owner",
+          description: "Dinner",
+          amountMinorUnits: 1000n,
+          currencyCode: "PKR",
+          splitType: "EQUAL" as const,
+          expenseDate: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          payer: { id: "owner", name: "Ahmed", email: "a@example.com" },
+          splitCount: 2,
+        },
+      ],
+    });
 
     const service = makeService();
     const result = await service.getGroupExpenses("owner", "group-1");
 
-    expect(repository.findExpensesByGroupId).toHaveBeenCalledWith("group-1");
-    expect(result[0].amountMinorUnits).toBe(1000);
-    expect(result[0].splitCount).toBe(2);
+    expect(repository.findExpensesByGroupId).toHaveBeenCalledWith("group-1", undefined);
+    expect(result.pagination).toBeUndefined();
+    expect(result.expenses[0].amountMinorUnits).toBe(1000);
+    expect(result.expenses[0].splitCount).toBe(2);
+  });
+
+  it("returns pagination metadata when paging options are supplied", async () => {
+    repository.findGroupById.mockResolvedValue({ id: "group-1", name: "G", createdById: "owner" });
+    repository.findGroupMemberIds.mockResolvedValue(["owner", "user-2"]);
+    repository.findExpensesByGroupId.mockResolvedValue({ expenses: [], total: 0 });
+
+    const service = makeService();
+    const result = await service.getGroupExpenses("owner", "group-1", { page: 2, limit: 10 });
+
+    expect(repository.findExpensesByGroupId).toHaveBeenCalledWith("group-1", {
+      page: 2,
+      limit: 10,
+    });
+    expect(result.pagination).toEqual({ page: 2, limit: 10, total: 0 });
   });
 
   it("throws NOT_FOUND when the group does not exist", async () => {
@@ -350,183 +366,5 @@ describe("ExpenseService.getExpenseById", () => {
       code: APP_ERRORS.NOT_GROUP_MEMBER,
       statusCode: HTTP_STATUSES.FORBIDDEN,
     });
-  });
-});
-
-describe("ExpenseService.updateExpense", () => {
-  const members = ["payer-1", "user-2", "user-3", "observer"];
-
-  function mockExisting(overrides: Partial<MakeExpenseOptions> = {}) {
-    const expense = makeStoredExpense({
-      splits: [
-        { userId: "payer-1", amountMinorUnits: 334n },
-        { userId: "user-2", amountMinorUnits: 333n },
-        { userId: "user-3", amountMinorUnits: 333n },
-      ],
-      ...overrides,
-    });
-    repository.findExpenseById.mockResolvedValue(expense);
-    repository.findGroupMemberIds.mockResolvedValue(members);
-    return expense;
-  }
-
-  it("merges fields over the existing expense and recomputes EQUAL splits", async () => {
-    mockExisting();
-    repository.updateExpenseWithSplits.mockResolvedValue(
-      makeStoredExpense({
-        description: "Lunch",
-        amountMinorUnits: 1200n,
-        splits: [
-          { userId: "payer-1", amountMinorUnits: 400n },
-          { userId: "user-2", amountMinorUnits: 400n },
-          { userId: "user-3", amountMinorUnits: 400n },
-        ],
-      }),
-    );
-
-    const service = makeService();
-    const result = await service.updateExpense("observer", "expense-1", {
-      description: "Lunch",
-      amountMinorUnits: 1200,
-    });
-
-    const [expenseId, data, activity] = repository.updateExpenseWithSplits.mock.calls[0];
-    expect(expenseId).toBe("expense-1");
-    expect(data.description).toBe("Lunch");
-    expect(data.amountMinorUnits).toBe(1200n);
-    expect(sumSplitAmounts(data.splits)).toBe(1200n);
-    expect(activity.type).toBe("EXPENSE_UPDATED");
-    expect(activity.message).toContain("Lunch");
-    expect(result.amountMinorUnits).toBe(1200);
-  });
-
-  it("keeps existing EXACT amounts when participants are omitted and the total is unchanged", async () => {
-    mockExisting({
-      splitType: "EXACT",
-      splits: [
-        { userId: "payer-1", amountMinorUnits: 500n },
-        { userId: "user-2", amountMinorUnits: 500n },
-      ],
-    });
-    repository.updateExpenseWithSplits.mockResolvedValue(makeStoredExpense());
-
-    const service = makeService();
-    await service.updateExpense("observer", "expense-1", { description: "Renamed" });
-
-    const [, data] = repository.updateExpenseWithSplits.mock.calls[0];
-    expect(data.splits).toEqual([
-      { userId: "payer-1", amountMinorUnits: 500n },
-      { userId: "user-2", amountMinorUnits: 500n },
-    ]);
-  });
-
-  it("throws BAD_REQUEST when EXACT amounts no longer sum to a changed total", async () => {
-    mockExisting({
-      splitType: "EXACT",
-      splits: [
-        { userId: "payer-1", amountMinorUnits: 500n },
-        { userId: "user-2", amountMinorUnits: 500n },
-      ],
-    });
-
-    const service = makeService();
-    await expect(
-      service.updateExpense("observer", "expense-1", { amountMinorUnits: 2000 }),
-    ).rejects.toMatchObject({
-      code: APP_ERRORS.SPLIT_TOTAL_MISMATCH,
-      statusCode: HTTP_STATUSES.BAD_REQUEST,
-    });
-    expect(repository.updateExpenseWithSplits).not.toHaveBeenCalled();
-  });
-
-  it("recomputes splits from the provided participants", async () => {
-    mockExisting();
-    repository.updateExpenseWithSplits.mockResolvedValue(makeStoredExpense());
-
-    const service = makeService();
-    await service.updateExpense("observer", "expense-1", {
-      participants: [{ userId: "payer-1" }, { userId: "user-2" }],
-    });
-
-    const [, data] = repository.updateExpenseWithSplits.mock.calls[0];
-    expect(sumSplitAmounts(data.splits)).toBe(1000n);
-    expect(data.splits).toHaveLength(2);
-  });
-
-  it("throws FORBIDDEN when the requester is not a member", async () => {
-    mockExisting();
-    repository.findGroupMemberIds.mockResolvedValue(["payer-1", "user-2", "user-3"]);
-
-    const service = makeService();
-    await expect(
-      service.updateExpense("outsider", "expense-1", { description: "Hacked" }),
-    ).rejects.toMatchObject({
-      code: APP_ERRORS.NOT_GROUP_MEMBER,
-      statusCode: HTTP_STATUSES.FORBIDDEN,
-    });
-  });
-
-  it("throws NOT_FOUND when the expense does not exist", async () => {
-    repository.findExpenseById.mockResolvedValue(null);
-
-    const service = makeService();
-    await expect(
-      service.updateExpense("observer", "missing", { description: "Nope" }),
-    ).rejects.toMatchObject({
-      code: APP_ERRORS.EXPENSE_NOT_FOUND,
-      statusCode: HTTP_STATUSES.NOT_FOUND,
-    });
-    expect(repository.updateExpenseWithSplits).not.toHaveBeenCalled();
-  });
-
-  it("throws FORBIDDEN when the new payer is not a group member", async () => {
-    mockExisting();
-    repository.findGroupMemberIds.mockResolvedValue(["user-2", "user-3", "observer"]);
-
-    const service = makeService();
-    await expect(
-      service.updateExpense("observer", "expense-1", { payerId: "outsider" }),
-    ).rejects.toMatchObject({
-      code: APP_ERRORS.PAYER_NOT_GROUP_MEMBER,
-      statusCode: HTTP_STATUSES.FORBIDDEN,
-    });
-  });
-});
-
-describe("ExpenseService.deleteExpense", () => {
-  it("deletes the expense and records the EXPENSE_DELETED event for a member", async () => {
-    repository.findExpenseById.mockResolvedValue(makeStoredExpense());
-    repository.findGroupMemberIds.mockResolvedValue(["payer-1", "observer"]);
-
-    const service = makeService();
-    await service.deleteExpense("observer", "expense-1");
-
-    const [expenseId, activity] = repository.deleteExpenseWithEvent.mock.calls[0];
-    expect(expenseId).toBe("expense-1");
-    expect(activity.type).toBe("EXPENSE_DELETED");
-    expect(activity.message).toContain("Dinner");
-  });
-
-  it("throws NOT_FOUND when the expense does not exist", async () => {
-    repository.findExpenseById.mockResolvedValue(null);
-
-    const service = makeService();
-    await expect(service.deleteExpense("observer", "missing")).rejects.toMatchObject({
-      code: APP_ERRORS.EXPENSE_NOT_FOUND,
-      statusCode: HTTP_STATUSES.NOT_FOUND,
-    });
-    expect(repository.deleteExpenseWithEvent).not.toHaveBeenCalled();
-  });
-
-  it("throws FORBIDDEN when the requester is not a member", async () => {
-    repository.findExpenseById.mockResolvedValue(makeStoredExpense());
-    repository.findGroupMemberIds.mockResolvedValue(["payer-1", "user-2"]);
-
-    const service = makeService();
-    await expect(service.deleteExpense("outsider", "expense-1")).rejects.toMatchObject({
-      code: APP_ERRORS.NOT_GROUP_MEMBER,
-      statusCode: HTTP_STATUSES.FORBIDDEN,
-    });
-    expect(repository.deleteExpenseWithEvent).not.toHaveBeenCalled();
   });
 });

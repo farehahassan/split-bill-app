@@ -29,6 +29,18 @@ void main() {
     expect(failure, isA<UnauthorizedFailure>());
   });
 
+  test('403 maps to ForbiddenFailure (not UnauthorizedFailure)', () {
+    final failure = mapApiException(
+      exception(
+        DioExceptionType.badResponse,
+        statusCode: 403,
+        data: {'message': 'You do not own this group'},
+      ),
+    );
+    expect(failure, isA<ForbiddenFailure>());
+    expect(failure.message, 'You do not own this group');
+  });
+
   test('422 maps to ValidationFailure using the server message', () {
     final failure = mapApiException(
       exception(

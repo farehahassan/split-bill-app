@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/di/injection.dart';
+import '../../auth/logic/auth_controller.dart';
 import '../../balances/presentation/pages/balances_page.dart';
 import '../../groups/presentation/pages/groups_page.dart';
 import '../../home/presentation/pages/home_page.dart';
@@ -9,6 +11,9 @@ import 'widgets/hisab_bottom_nav.dart';
 
 /// The authenticated shell: Home / Groups / Activity / Profile tabs with the
 /// center Add button pushing the receipt flow. Tabs cross-fade and slide.
+///
+/// Observes [AuthController]: when the session expires mid-use (e.g. a failed
+/// refresh) the user is returned to sign-in.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -37,37 +42,47 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 360),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) {
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          );
-          return FadeTransition(
-            opacity: curved,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.04, 0),
-                end: Offset.zero,
-              ).animate(curved),
-              child: child,
+    return ListenableBuilder(
+      listenable: getIt<AuthController>(),
+      builder: (context, _) {
+        if (!getIt<AuthController>().isAuthenticated) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) context.go('/sign-in');
+          });
+        }
+        return Scaffold(
+          body: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 360),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              final curved = CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              );
+              return FadeTransition(
+                opacity: curved,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.04, 0),
+                    end: Offset.zero,
+                  ).animate(curved),
+                  child: child,
+                ),
+              );
+            },
+            child: KeyedSubtree(
+              key: ValueKey<int>(_index),
+              child: _pages[_contentIndex(_index)],
             ),
-          );
-        },
-        child: KeyedSubtree(
-          key: ValueKey<int>(_index),
-          child: _pages[_contentIndex(_index)],
-        ),
-      ),
-      bottomNavigationBar: HisabBottomNav(
-        currentIndex: _index,
-        onTap: _select,
-        onAdd: () => context.push('/receipt'),
-      ),
+          ),
+          bottomNavigationBar: HisabBottomNav(
+            currentIndex: _index,
+            onTap: _select,
+            onAdd: () => context.push('/receipt'),
+          ),
+        );
+      },
     );
   }
 }

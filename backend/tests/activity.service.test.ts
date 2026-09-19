@@ -11,11 +11,13 @@ vi.mock("../src/modules/activity/activity.repository.js", async () => {
   >("../src/modules/activity/activity.repository.js");
   return {
     ...actual,
-    ActivityRepository: vi.fn(() => ({
-      findGroupById: vi.fn(),
-      isGroupMember: vi.fn(),
-      findActivityByGroupId: vi.fn(),
-    })),
+    ActivityRepository: vi.fn(function () {
+      return {
+        findGroupById: vi.fn(),
+        isGroupMember: vi.fn(),
+        findActivityByGroupId: vi.fn(),
+      };
+    }),
   };
 });
 
