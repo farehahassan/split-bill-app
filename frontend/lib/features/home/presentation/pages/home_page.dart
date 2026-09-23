@@ -124,7 +124,6 @@ class _HomePageState extends State<HomePage> {
         children: [
           HisabHeader(title: _greeting()),
           const SizedBox(height: AppSpacing.large),
-
           if (_loading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 48),
@@ -138,7 +137,8 @@ class _HomePageState extends State<HomePage> {
                   Text(
                     _error!,
                     textAlign: TextAlign.center,
-                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.danger),
+                    style: AppTextStyles.bodyMedium
+                        .copyWith(color: AppColors.danger),
                   ),
                   const SizedBox(height: AppSpacing.medium),
                   OutlinedButton(onPressed: _load, child: const Text('Retry')),
@@ -199,7 +199,8 @@ class _HomePageState extends State<HomePage> {
             for (final group in _groups.take(2)) ...[
               Entrance(
                 delay: const Duration(milliseconds: 160),
-                child: RecentGroupCard(group: group, onTap: widget.onOpenGroups),
+                child:
+                    RecentGroupCard(group: group, onTap: widget.onOpenGroups),
               ),
               const SizedBox(height: AppSpacing.small),
             ],

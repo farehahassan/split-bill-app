@@ -18,7 +18,8 @@ import 'add_expense_sheet.dart';
 /// Bottom sheet for a single group: live members list, recorded expenses and
 /// actions to add a member (by user id) or record an expense.
 class GroupDetailsSheet extends StatefulWidget {
-  const GroupDetailsSheet({super.key, required this.groupId, required this.groupName});
+  const GroupDetailsSheet(
+      {super.key, required this.groupId, required this.groupName});
 
   final String groupId;
   final String groupName;
@@ -145,7 +146,6 @@ class _GroupDetailsSheetState extends State<GroupDetailsSheet> {
                 const SizedBox(height: 4),
                 Text(_subtitle, style: AppTextStyles.caption),
                 const SizedBox(height: AppSpacing.medium),
-
                 if (_loading)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 40),
@@ -154,7 +154,8 @@ class _GroupDetailsSheetState extends State<GroupDetailsSheet> {
                 else if (_error != null) ...[
                   Text(
                     _error!,
-                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.danger),
+                    style: AppTextStyles.bodyMedium
+                        .copyWith(color: AppColors.danger),
                   ),
                   const SizedBox(height: AppSpacing.medium),
                   AppButton(label: 'Retry', onPressed: _load),
@@ -268,14 +269,16 @@ class _GroupDetailsSheetState extends State<GroupDetailsSheet> {
                     color: AppColors.primarySoft,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.receipt_long, color: AppColors.primary, size: 20),
+                  child: const Icon(Icons.receipt_long,
+                      color: AppColors.primary, size: 20),
                 ),
                 const SizedBox(width: AppSpacing.medium),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(expense.description, style: AppTextStyles.bodyMedium),
+                      Text(expense.description,
+                          style: AppTextStyles.bodyMedium),
                       const SizedBox(height: 2),
                       Text(
                         '${expense.payer.name} · ${_expenseDate(expense.expenseDate)}',
@@ -287,7 +290,8 @@ class _GroupDetailsSheetState extends State<GroupDetailsSheet> {
                 const SizedBox(width: AppSpacing.small),
                 Text(
                   Money(expense.amountMinorUnits).format(),
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w800),
                 ),
               ],
             ),

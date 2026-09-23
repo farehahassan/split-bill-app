@@ -1,152 +1,115 @@
 # Hisab — Split Bill App
 
-A premium-looking Flutter expense-splitting app UI: **Hisab** (Urdu for
-*account / calculation*). The Flutter client connects to the
-[HisabKitab backend](https://github.com/farehahassan/split-bill-app/tree/feat/production-deployment)
-via a documented REST API.
+A premium-looking Flutter expense-splitting app: **Hisab** (Urdu for *account / calculation*). The Flutter client connects to the [HisabKitab backend](https://github.com/farehahassan/split-bill-app) via a documented REST API.
 
 ## Quick Start
 
 ```bash
+cd frontend
 flutter pub get
 flutter run
 ```
 
-### API configuration
+### API Configuration
 
-The backend base URL is injected at build time via `--dart-define`:
+The backend base URL is injected at build/run time via `--dart-define`:
 
 ```bash
-# Local development (default when no --dart-define is passed)
+# Local development — desktop / iOS Simulator (default when no define is passed)
 flutter run --dart-define=API_BASE_URL=http://localhost:3000/api/v1
 
-# Production / staging — pass the deployed URL
+# Android Emulator (loopback to host machine)
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000/api/v1
+
+# Production / Staging — pass your deployed URL
 flutter run --dart-define=API_BASE_URL=https://<your-deployed-backend>/api/v1
 ```
 
-When no value is provided, debug builds default to `http://localhost:3000/api/v1`
-and release builds fall back to a placeholder that must be overridden.
+- When no value is provided, debug/profile builds default to `http://localhost:3000/api/v1`.
+- Release builds throw a `StateError` if `API_BASE_URL` is omitted, failing fast to prevent accidental misconfiguration.
+- Timeouts and standard configurations are centralized in `lib/core/config/app_config.dart`.
+
+### Verification & Quality Checks
 
 ```bash
 dart format .      # formatting
 flutter analyze    # static analysis — 0 issues
-flutter test       # unit + widget tests (55 passing)
+flutter test       # unit + widget tests (84 passing)
 ```
-
-## Screens
-
-| Flow | Screen | Highlights |
-| --- | --- | --- |
-| 1 | **Splash** | Dark-green brand screen; springy logo entrance, session restore |
-| 2 | **Sign In / Sign Up** | Real auth via POST /auth/login, error banners, session persistence |
-| 3 | **Home Dashboard** | Greeting from user profile, net-balance card, recent groups & activity — all from backend |
-| 4 | **Groups** | Live group list, create group, group detail with members/expenses, add expense (equal splits) |
-| 5 | **AI Receipt** | Scanned receipt card (UI scaffold — camera/scanner integration TBD) |
-| 6 | **Balances** | Group-scoped balances, settle with idempotent POST, SnackBar retry, settlement history |
-| 7 | **Activity** | Paginated activity feed with group chips + filter chips (All / Expenses / Settlements) |
-| 8 | **Profile** | Live user profile, stats, real sign-out |
 
 ## Architecture
 
-```
-Presentation (pages / widgets / bottom sheets)
+```text
+Presentation (pages / widgets / bottom sheets / common UI states)
         ↓
 Data layer (models / remote data sources / repositories)
         ↓
-Core (ApiClient, AuthTokenStore, error mapping, Money utilities)
+Core (ApiClient, AuthTokenStore, error mapping, Money utilities, theme)
         ↓
 Backend REST API (REST / JSON / Prisma + PostgreSQL)
 ```
 
-- **Feature-first** folders under `lib/features/<feature>/`.
-- **DI** via `get_it` — `configureDependencies()` in `app/di/injection.dart`
-  accepts an optional `ApiClient` for test injection.
-- **Auth flow** — `AuthController` (ChangeNotifier) manages session state;
-  `SplashPage` restores the session; `GoRouter` enforces auth redirects.
-- **Money** is stored in integer minor units (`core/utils/money.dart`) —
-  formatted as whole PKR; splits use integer arithmetic.
-- **Idempotency** — settlement creation sends a client-generated
-  `Idempotency-Key` header (8–128 chars); the key is reused on retries.
+- **Feature-first** organization under `lib/features/<feature>/`.
+- **DI** via `get_it` — `configureDependencies()` in `app/di/injection.dart` accepts an optional `ApiClient` and `SecureStorage` for test isolation.
+- **Auth flow** — `AuthController` (ChangeNotifier) coordinates session state; `SplashPage` restores the session; `GoRouter` enforces auth guards.
+- **Money** is stored in integer minor units (`core/utils/money.dart`) matching backend Prisma `BIGINT` (paisa).
+- **Idempotency** — financial mutations send client-generated `Idempotency-Key` headers (8–128 chars).
 
-## Backend Contracts
+## Network Layer
 
-| Method | Endpoint | Response envelope |
+The shared `ApiClient` (`lib/core/network/api_client.dart`) handles all HTTP traffic:
+- **Methods**: Full support for `GET`, `POST`, `PUT`, `DELETE`, accepting typed JSON bodies, `queryParameters`, and custom `headers`.
+- **Authentication**: Automatically attaches `Authorization: Bearer <token>` to protected endpoints; skips credentials for unauthenticated endpoints (`/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/logout`).
+- **Safe Retries**: Performs a single transparent token refresh and retry on 401 status for safe read requests (`GET`, `HEAD`). **Mutations are never auto-retried** to guarantee zero duplicate financial transactions.
+- **Session Expiration**: Dispatches `onSessionExpired` to clear stored tokens and redirect to sign-in when a refresh fails.
+- **Error Mapping**: `mapApiException` normalizes all low-level Dio exceptions and HTTP status codes (`400`, `401`, `403`, `404`, `409`, `422`, `429`, `500+`) into a user-safe `AppFailure` hierarchy, extracting field-level errors (`ApiFieldError`) when present.
+
+## Authentication Infrastructure
+
+- **Token Storage**: Encrypted at rest via `SecureStorage` (`lib/core/storage/secure_storage.dart`) using platform Keychain (iOS) and Keystore (Android), with an in-memory fake for tests.
+- **AuthTokenStore** (`lib/core/network/auth_token_store.dart`): Persistent access and refresh token management with `saveSession()`, `readAccessToken()`, `readRefreshToken()`, and `clear()`.
+- **Session Restoration**: At launch, `AuthController.restoreSession()` checks for stored credentials, verifies against `GET /auth/me` (refreshing if expired), and smoothly routes to the main app or sign-in without unauthenticated screen flashes.
+
+## Common UI States
+
+Shared, production-grade components matching the Hisab design tokens (`AppColors`, `AppSpacing`, `AppTheme`):
+- **`AppLoader`** (`lib/core/ui/app_loader.dart`): Centered circular progress indicator styled in brand primary color with optional status label.
+- **`ErrorView`** (`lib/core/ui/error_view.dart`): Centered error state with semantic danger icon, user-safe description, and optional retry action button.
+- **`EmptyView`** (`lib/core/ui/empty_view.dart`): Empty placeholder featuring icon, headline, subtitle, and optional custom action button.
+- **`AppButton`** (`lib/core/ui/app_button.dart`): Primary action button with built-in loading spinner (`isLoading: true`) that disables duplicate taps and respects disabled styling (`onPressed: null`).
+
+## Backend Models
+
+Strongly typed Dart models matching backend schema contracts with `fromJson`, `toJson`, `copyWith`, and equality:
+
+| Model | File Location | Key Responsibilities |
 | --- | --- | --- |
-| POST | `/auth/register` | `{user, token, refreshToken}` |
-| POST | `/auth/login` | `{user, token, refreshToken}` |
-| POST | `/auth/refresh` | `{user, token, refreshToken}` (rotates) |
-| POST | `/auth/logout` | `{message}` |
-| GET | `/auth/me` | `{user}` |
-| GET | `/groups` | `{groups: [...]}` |
-| POST | `/groups` | `{group: {...}}` |
-| GET | `/groups/:id` | `{group: {...}}` |
-| POST | `/groups/:id/members` | `{member: {...}}` |
-| GET | `/groups/:id/balances` | `{balances: [...]}` |
-| POST | `/groups/:id/expenses` | `{expense: {...}}` |
-| GET | `/groups/:id/expenses` | `{expenses: [...]}` |
-| POST | `/groups/:id/settlements` | `{settlement: {...}}` |
-| GET | `/groups/:id/settlements` | `{settlements: [...]}` |
-| GET | `/groups/:id/activity?page=&limit=` | `{events: [...]}` + `pagination` |
+| **`User`** | `lib/features/auth/data/models/user.dart` | User identity (`id`, `name`, `email`, `initials`). Backwards-compatible with `UserProfile`. |
+| **`Group`** | `lib/features/groups/data/models/group.dart` | Bill-splitting group (`id`, `name`, `createdById`, `memberCount`, timestamps). Includes `GroupDetail` and `GroupSummary`. |
+| **`GroupMember`** | `lib/features/groups/data/models/group.dart` | Group participant reference (`id`, `name`, `email`) and `GroupMemberRecord`. |
+| **`Expense`** | `lib/features/expenses/data/models/expense.dart` | Expense record with integer minor-unit amount, payer, splits list, and `Money` getter. Includes `ExpenseDetail` and `ExpenseSummary`. |
+| **`ExpenseSplit`** | `lib/features/expenses/data/models/expense.dart` | Individual participant share of an expense. |
+| **`Balance`** | `lib/features/settlements/data/models/balance.dart` | Member net balance within a group with `isCreditor`, `isDebtor`, and `isSettled` flags. Compatible with `GroupBalance`. |
+| **`Settlement`** | `lib/features/settlements/data/models/settlement.dart` | Payer-to-payee debt settlement with idempotency payload support. |
+| **`ActivityEvent`** | `lib/features/activity/data/models/activity_event.dart` | Auditable activity feed item with timestamps, user info, event type checks, and pagination models. |
+
+A domain barrel export is available at `lib/core/models/models.dart`.
+
+## Mock Data
+
+Mock definitions are isolated in `lib/mock/mock_data.dart` and serve standalone UI demonstration/previews (e.g. receipt scanning scaffold) without interfering with real backend integration layers.
 
 ## Tests
 
-- `test/core/api_client_test.dart` — token attachment, 401 refresh/retry, expiry
-- `test/core/api_envelope_test.dart` — envelope unwrap + pagination
-- `test/core/api_exception_mapper_test.dart` — HTTP/network error mapping
-- `test/core/app_config_test.dart` — default base URL
-- `test/core/auth_token_store_test.dart` — session CRUD
-- `test/core/idempotency_key_test.dart` — format + uniqueness
-- `test/core/money_test.dart` — parsing, arithmetic, split remainder rules
-- `test/features/data_contract_test.dart` — data source contracts for all features
-- `test/widget/app_smoke_test.dart` — full live flow with fake HTTP backend
-
-## Responsive Design
-
-- **Adaptive layout** — every page renders inside `ResponsiveContent`
-  (`core/ui/responsive_content.dart`), which centers content in a 560dp column
-  on tablets/desktop while filling phones edge to edge.
-- **Width scaling** — `Responsive` derives a scale factor from the 390dp design
-  baseline (clamped 0.85–1.25x).
-- Verified by a widget test that renders the full flow on a 1000x1000dp
-  tablet viewport with zero overflows.
-
-## Project Structure
-
-```text
-lib/
-├── main.dart
-├── app/
-│   ├── app.dart                  # MaterialApp.router (theme + router)
-│   ├── di/injection.dart         # get_it composition root
-│   └── router/app_router.dart    # GoRouter + auth redirect
-├── core/
-│   ├── config/    # AppConfig (API_BASE_URL)
-│   ├── constants/ # AppTextStyles
-│   ├── errors/    # AppFailure hierarchy
-│   ├── network/   # ApiClient, ApiEnvelope, AuthTokenStore, IdempotencyKey
-│   ├── storage/   # SecureStorage (flutter_secure_storage wrapper)
-│   ├── theme/     # colors, spacing, text styles
-│   ├── ui/        # reusable widgets + animation primitives
-│   └── utils/     # Money, splitEqually
-└── features/
-    ├── activity/      # data/ (model, datasource, repo) + presentation/
-    ├── auth/          # data/ + logic/AuthController + presentation/
-    ├── balances/      # data/ + presentation/
-    ├── expenses/      # data/ + presentation/
-    ├── groups/        # data/ + presentation/
-    ├── home/          # presentation/
-    ├── profile/       # presentation/
-    ├── shell/         # MainShell + HisabHeader
-    ├── splash/        # presentation/
-    └── receipt/       # presentation/ (UI scaffold)
-```
-
-## Known Limitations
-
-- Sessions are stored **encrypted at rest** via `flutter_secure_storage`
-  (Keychain on iOS, Keystore-backed on Android), behind the `SecureStorage`
-  abstraction in `core/storage/`. Tests inject an in-memory fake, and DI wires
-  the real plugin in production (`configureDependencies`).
-- The receipt flow is a UI scaffold — camera/scanner integration is TBD.
-- Activity creation errors (stderr from get_it) are non-fatal — the catch block
-  degrades gracefully in the home page.
+The project includes 84 automated unit and widget tests covering:
+- `test/core/api_client_test.dart` — Token attachment, safe GET 401 refresh/retry, mutation non-retry, PUT/DELETE methods, custom headers.
+- `test/core/backend_models_test.dart` — Serialization, deserialization, copyWith, and equality for all 8 backend models.
+- `test/core/common_ui_states_test.dart` — Rendering and interaction for `AppLoader`, `ErrorView`, `EmptyView`, and `AppButton`.
+- `test/core/api_envelope_test.dart` — Response envelope unwrapping and pagination extraction.
+- `test/core/api_exception_mapper_test.dart` — Network and HTTP error mapping to user-safe `AppFailure`s.
+- `test/core/app_config_test.dart` — Environment base URL configuration and validation.
+- `test/core/auth_token_store_test.dart` — Secure token session persistence, reading, and clearing.
+- `test/core/idempotency_key_test.dart` — Idempotency key format, charset, and uniqueness.
+- `test/core/money_test.dart` — Money minor-unit parsing, integer arithmetic, and split remainder rules.
+- `test/features/data_contract_test.dart` — Remote data source contracts for all core features against backend routes.
+- `test/widget/app_smoke_test.dart` — End-to-end user navigation flow across phone and tablet viewports with mock HTTP adapter.

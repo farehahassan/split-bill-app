@@ -31,9 +31,9 @@ class ApiClient {
     Future<bool> Function()? refreshSession,
     VoidCallback? onSessionExpired,
     Dio? dio,
-  }) : _tokenStore = tokenStore,
-       _refreshSession = refreshSession,
-       _onSessionExpired = onSessionExpired {
+  })  : _tokenStore = tokenStore,
+        _refreshSession = refreshSession,
+        _onSessionExpired = onSessionExpired {
     _dio = dio ??
         Dio(
           BaseOptions(
@@ -70,17 +70,63 @@ class ApiClient {
     onError: _onError,
   );
 
-  Future<dynamic> get(String path, {Map<String, dynamic>? queryParameters}) =>
-      _execute(() => _dio.get<dynamic>(path, queryParameters: queryParameters));
+  Future<dynamic> get(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? headers,
+  }) =>
+      _execute(
+        () => _dio.get<dynamic>(
+          path,
+          queryParameters: queryParameters,
+          options: headers != null ? Options(headers: headers) : null,
+        ),
+      );
 
-  Future<dynamic> post(String path, {Object? data, Map<String, dynamic>? headers}) =>
-      _execute(() => _dio.post<dynamic>(path, data: data, options: Options(headers: headers)));
+  Future<dynamic> post(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? headers,
+    Map<String, dynamic>? queryParameters,
+  }) =>
+      _execute(
+        () => _dio.post<dynamic>(
+          path,
+          data: data,
+          queryParameters: queryParameters,
+          options: headers != null ? Options(headers: headers) : null,
+        ),
+      );
 
-  Future<dynamic> put(String path, {Object? data}) =>
-      _execute(() => _dio.put<dynamic>(path, data: data));
+  Future<dynamic> put(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? headers,
+    Map<String, dynamic>? queryParameters,
+  }) =>
+      _execute(
+        () => _dio.put<dynamic>(
+          path,
+          data: data,
+          queryParameters: queryParameters,
+          options: headers != null ? Options(headers: headers) : null,
+        ),
+      );
 
-  Future<dynamic> delete(String path, {Object? data}) =>
-      _execute(() => _dio.delete<dynamic>(path, data: data));
+  Future<dynamic> delete(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? headers,
+    Map<String, dynamic>? queryParameters,
+  }) =>
+      _execute(
+        () => _dio.delete<dynamic>(
+          path,
+          data: data,
+          queryParameters: queryParameters,
+          options: headers != null ? Options(headers: headers) : null,
+        ),
+      );
 
   /// Executes [request], normalizing 204/empty bodies to `null`. Errored and
   /// already-refreshed requests flow through the interceptor chain first.
@@ -94,15 +140,19 @@ class ApiClient {
     }
   }
 
-  void _onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+  void _onRequest(
+      RequestOptions options, RequestInterceptorHandler handler) async {
     final token = await _tokenStore?.readAccessToken();
-    if (token != null && token.isNotEmpty && !_unauthenticatedAuthPaths.contains(options.path)) {
-      options.headers['Authorization'] = 'Bearer $token';
+    if (token != null &&
+        token.isNotEmpty &&
+        !_unauthenticatedAuthPaths.contains(options.path)) {
+      options.headers.putIfAbsent('Authorization', () => 'Bearer $token');
     }
     handler.next(options);
   }
 
-  Future<void> _onError(DioException error, ErrorInterceptorHandler handler) async {
+  Future<void> _onError(
+      DioException error, ErrorInterceptorHandler handler) async {
     final options = error.requestOptions;
     final status = error.response?.statusCode;
 

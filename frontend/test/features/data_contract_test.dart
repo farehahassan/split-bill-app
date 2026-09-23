@@ -26,41 +26,41 @@ void main() {
   });
 
   Map<String, Object?> envelope(Object? data) => {
-    'success': true,
-    if (data != null) 'data': data,
-  };
+        'success': true,
+        if (data != null) 'data': data,
+      };
 
   Map<String, Object?> wrapped(String key, Object? value) =>
       envelope({key: value});
 
   Map<String, Object?> expenseSummaryJson(String id) => {
-    'id': id,
-    'groupId': 'g1',
-    'paidById': 'u1',
-    'description': 'Dinner $id',
-    'amountMinorUnits': 1000,
-    'currencyCode': 'PKR',
-    'splitType': 'EQUAL',
-    'expenseDate': '2026-06-01T10:00:00Z',
-    'createdAt': '2026-06-01T10:00:00Z',
-    'updatedAt': '2026-06-01T10:00:00Z',
-    'payer': {'id': 'u1', 'name': 'Ali', 'email': 'a@b.c'},
-    'splitCount': 2,
-  };
+        'id': id,
+        'groupId': 'g1',
+        'paidById': 'u1',
+        'description': 'Dinner $id',
+        'amountMinorUnits': 1000,
+        'currencyCode': 'PKR',
+        'splitType': 'EQUAL',
+        'expenseDate': '2026-06-01T10:00:00Z',
+        'createdAt': '2026-06-01T10:00:00Z',
+        'updatedAt': '2026-06-01T10:00:00Z',
+        'payer': {'id': 'u1', 'name': 'Ali', 'email': 'a@b.c'},
+        'splitCount': 2,
+      };
 
   Map<String, Object?> settlementJson(String id) => {
-    'id': id,
-    'groupId': 'g1',
-    'payerId': 'u1',
-    'payeeId': 'u2',
-    'amountMinorUnits': 1000,
-    'currencyCode': 'PKR',
-    'settledAt': '2026-06-01T10:00:00Z',
-    'createdAt': '2026-06-01T10:00:00Z',
-    'updatedAt': '2026-06-01T10:00:00Z',
-    'payer': {'id': 'u1', 'name': 'Ali', 'email': 'a@b.c'},
-    'payee': {'id': 'u2', 'name': 'Sana', 'email': 's@b.c'},
-  };
+        'id': id,
+        'groupId': 'g1',
+        'payerId': 'u1',
+        'payeeId': 'u2',
+        'amountMinorUnits': 1000,
+        'currencyCode': 'PKR',
+        'settledAt': '2026-06-01T10:00:00Z',
+        'createdAt': '2026-06-01T10:00:00Z',
+        'updatedAt': '2026-06-01T10:00:00Z',
+        'payer': {'id': 'u1', 'name': 'Ali', 'email': 'a@b.c'},
+        'payee': {'id': 'u2', 'name': 'Sana', 'email': 's@b.c'},
+      };
 
   test('auth login posts credentials and parses the session', () async {
     adapter.handle = (o) => o.path == '/auth/login'
@@ -75,7 +75,8 @@ void main() {
         : null;
 
     final ds = AuthRemoteDataSource(client);
-    final session = await ds.login(email: 'ali@example.com', password: 'secret123');
+    final session =
+        await ds.login(email: 'ali@example.com', password: 'secret123');
 
     expect(adapter.requests.single.path, '/auth/login');
     expect(adapter.requests.single.data, {
@@ -89,7 +90,13 @@ void main() {
 
   test('auth register sends name/email/password', () async {
     adapter.handle = (o) => o.path == '/auth/register'
-        ? FakeResponse(201, envelope({'user': {'id': 'u1', 'name': 'Ali', 'email': 'a@b.c'}, 'token': 't', 'refreshToken': 'r'}))
+        ? FakeResponse(
+            201,
+            envelope({
+              'user': {'id': 'u1', 'name': 'Ali', 'email': 'a@b.c'},
+              'token': 't',
+              'refreshToken': 'r'
+            }))
         : null;
 
     final ds = AuthRemoteDataSource(client);
@@ -107,7 +114,11 @@ void main() {
     adapter.handle = (o) => o.path == '/auth/refresh'
         ? FakeResponse(
             200,
-            envelope({'user': {'id': 'u1', 'name': 'Ali', 'email': 'a@b.c'}, 'token': 'a2', 'refreshToken': 'r2'}),
+            envelope({
+              'user': {'id': 'u1', 'name': 'Ali', 'email': 'a@b.c'},
+              'token': 'a2',
+              'refreshToken': 'r2'
+            }),
           )
         : null;
 
@@ -159,7 +170,8 @@ void main() {
           )
         : null;
 
-    final created = await GroupsRemoteDataSource(client).createGroup(name: 'Trip');
+    final created =
+        await GroupsRemoteDataSource(client).createGroup(name: 'Trip');
     expect(adapter.requests.single.path, '/groups');
     expect(adapter.requests.single.data, {'name': 'Trip'});
     expect(created.id, 'g9');
@@ -188,7 +200,7 @@ void main() {
     expect(detail.isMember('u2'), isTrue);
   });
 
-    test('expense create sends equal split and parses splits', () async {
+  test('expense create sends equal split and parses splits', () async {
     adapter.handle = (o) => o.path == '/groups/g1/expenses'
         ? FakeResponse(
             201,
@@ -209,13 +221,21 @@ void main() {
                   'id': 's1',
                   'userId': 'u1',
                   'amountMinorUnits': 125000,
-                  'user': {'id': 'u1', 'name': 'Ali', 'email': 'ali@example.com'},
+                  'user': {
+                    'id': 'u1',
+                    'name': 'Ali',
+                    'email': 'ali@example.com'
+                  },
                 },
                 {
                   'id': 's2',
                   'userId': 'u2',
                   'amountMinorUnits': 125000,
-                  'user': {'id': 'u2', 'name': 'Sana', 'email': 'sana@example.com'},
+                  'user': {
+                    'id': 'u2',
+                    'name': 'Sana',
+                    'email': 'sana@example.com'
+                  },
                 },
               ],
             }),
@@ -262,7 +282,11 @@ void main() {
                   'expenseDate': '2026-06-01T10:00:00Z',
                   'createdAt': '2026-06-01T10:00:00Z',
                   'updatedAt': '2026-06-01T10:00:00Z',
-                  'payer': {'id': 'u1', 'name': 'Ali', 'email': 'ali@example.com'},
+                  'payer': {
+                    'id': 'u1',
+                    'name': 'Ali',
+                    'email': 'ali@example.com'
+                  },
                   'splitCount': 2,
                 },
               ],
@@ -270,12 +294,14 @@ void main() {
           )
         : null;
 
-    final expenses = await ExpensesRemoteDataSource(client).getGroupExpenses('g1');
+    final expenses =
+        await ExpensesRemoteDataSource(client).getGroupExpenses('g1');
     expect(expenses.single.splitCount, 2);
     expect(expenses.single.payer.name, 'Ali');
   });
 
-  test('expense list pages through all pages when the server paginates', () async {
+  test('expense list pages through all pages when the server paginates',
+      () async {
     final pageSize = ExpensesRemoteDataSource.pageSize;
     var calls = 0;
     adapter.handle = (o) {
@@ -287,7 +313,10 @@ void main() {
           200,
           {
             'success': true,
-            'data': {'expenses': List.generate(pageSize, (i) => expenseSummaryJson('e$i'))},
+            'data': {
+              'expenses':
+                  List.generate(pageSize, (i) => expenseSummaryJson('e$i'))
+            },
             'pagination': {'page': 1, 'limit': pageSize, 'total': pageSize + 1},
           },
         );
@@ -296,17 +325,21 @@ void main() {
         200,
         {
           'success': true,
-          'data': {'expenses': [expenseSummaryJson('last')]},
+          'data': {
+            'expenses': [expenseSummaryJson('last')]
+          },
           'pagination': {'page': 2, 'limit': pageSize, 'total': pageSize + 1},
         },
       );
     };
 
-    final expenses = await ExpensesRemoteDataSource(client).getGroupExpenses('g1');
+    final expenses =
+        await ExpensesRemoteDataSource(client).getGroupExpenses('g1');
 
     expect(expenses, hasLength(pageSize + 1));
     expect(calls, 2);
-    final pages = adapter.requests.map((r) => r.queryParameters['page']).toList();
+    final pages =
+        adapter.requests.map((r) => r.queryParameters['page']).toList();
     expect(pages, containsAll([1, 2]));
     expect(expenses.last.id, 'last');
   });
@@ -317,20 +350,32 @@ void main() {
             200,
             envelope({
               'balances': [
-                {'userId': 'u1', 'name': 'Ali', 'email': 'a@b.c', 'amountMinorUnits': 50000},
-                {'userId': 'u2', 'name': 'Sana', 'email': 's@b.c', 'amountMinorUnits': -50000},
+                {
+                  'userId': 'u1',
+                  'name': 'Ali',
+                  'email': 'a@b.c',
+                  'amountMinorUnits': 50000
+                },
+                {
+                  'userId': 'u2',
+                  'name': 'Sana',
+                  'email': 's@b.c',
+                  'amountMinorUnits': -50000
+                },
               ],
             }),
           )
         : null;
 
-    final balances = await SettlementsRemoteDataSource(client).getGroupBalances('g1');
+    final balances =
+        await SettlementsRemoteDataSource(client).getGroupBalances('g1');
     expect(balances.singleWhere((b) => b.userId == 'u1').isCreditor, isTrue);
     expect(balances.singleWhere((b) => b.userId == 'u2').isDebtor, isTrue);
   });
 
-  test('settlement create sends the Idempotency-Key header and payload', () async {
-        adapter.handle = (o) => o.path == '/groups/g1/settlements'
+  test('settlement create sends the Idempotency-Key header and payload',
+      () async {
+    adapter.handle = (o) => o.path == '/groups/g1/settlements'
         ? FakeResponse(
             201,
             wrapped('settlement', {
@@ -363,7 +408,8 @@ void main() {
     final request = adapter.requests.single;
     expect(request.path, '/groups/g1/settlements');
     expect(request.headers['Idempotency-Key'], 'ky_1234567890_ABCDEFGHIJKL');
-    expect(request.data, {'payerId': 'u1', 'payeeId': 'u2', 'amountMinorUnits': 50000});
+    expect(request.data,
+        {'payerId': 'u1', 'payeeId': 'u2', 'amountMinorUnits': 50000});
     expect(settlement.payer.name, 'Ali');
   });
 
@@ -372,11 +418,13 @@ void main() {
         ? FakeResponse(200, envelope({'settlements': <Object?>[]}))
         : null;
 
-    final settlements = await SettlementsRemoteDataSource(client).getGroupSettlements('g1');
+    final settlements =
+        await SettlementsRemoteDataSource(client).getGroupSettlements('g1');
     expect(settlements, isEmpty);
   });
 
-  test('settlement list pages through all pages when the server paginates', () async {
+  test('settlement list pages through all pages when the server paginates',
+      () async {
     final pageSize = SettlementsRemoteDataSource.pageSize;
     var calls = 0;
     adapter.handle = (o) {
@@ -389,7 +437,8 @@ void main() {
           {
             'success': true,
             'data': {
-              'settlements': List.generate(pageSize, (i) => settlementJson('s$i')),
+              'settlements':
+                  List.generate(pageSize, (i) => settlementJson('s$i')),
             },
             'pagination': {'page': 1, 'limit': pageSize, 'total': pageSize + 1},
           },
@@ -399,7 +448,9 @@ void main() {
         200,
         {
           'success': true,
-          'data': {'settlements': [settlementJson('last')]},
+          'data': {
+            'settlements': [settlementJson('last')]
+          },
           'pagination': {'page': 2, 'limit': pageSize, 'total': pageSize + 1},
         },
       );
@@ -413,7 +464,8 @@ void main() {
     expect(settlements.last.id, 'last');
   });
 
-  test('activity feed requests pagination query and parses events + pagination', () async {
+  test('activity feed requests pagination query and parses events + pagination',
+      () async {
     adapter.handle = (o) => o.path == '/groups/g1/activity'
         ? FakeResponse(
             200,

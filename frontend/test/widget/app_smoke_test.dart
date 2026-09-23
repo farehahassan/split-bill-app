@@ -27,7 +27,11 @@ FakeResponse? Function(RequestOptions options) scriptedBackend() {
         {
           'success': true,
           'data': {
-            'user': {'id': 'u1', 'name': 'Ahmed Raza', 'email': 'ahmed@example.com'},
+            'user': {
+              'id': 'u1',
+              'name': 'Ahmed Raza',
+              'email': 'ahmed@example.com'
+            },
             'token': 'access-1',
             'refreshToken': 'refresh-1',
           },
@@ -40,7 +44,11 @@ FakeResponse? Function(RequestOptions options) scriptedBackend() {
         {
           'success': true,
           'data': {
-            'user': {'id': 'u1', 'name': 'Ahmed Raza', 'email': 'ahmed@example.com'},
+            'user': {
+              'id': 'u1',
+              'name': 'Ahmed Raza',
+              'email': 'ahmed@example.com'
+            },
           },
         },
       );
@@ -67,7 +75,12 @@ FakeResponse? Function(RequestOptions options) scriptedBackend() {
         'success': true,
         'data': {
           'balances': <Object?>[
-            {'userId': 'u1', 'name': 'Ahmed Raza', 'email': 'ahmed@example.com', 'amountMinorUnits': 0},
+            {
+              'userId': 'u1',
+              'name': 'Ahmed Raza',
+              'email': 'ahmed@example.com',
+              'amountMinorUnits': 0
+            },
           ],
         },
       });
@@ -95,7 +108,7 @@ Future<void> signIn(WidgetTester tester) async {
 void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    getIt.reset();
+    await getIt.reset();
     final dio = Dio(BaseOptions(baseUrl: 'http://test.local'));
     dio.httpClientAdapter = FakeHttpAdapter(scriptedBackend());
     await configureDependencies(

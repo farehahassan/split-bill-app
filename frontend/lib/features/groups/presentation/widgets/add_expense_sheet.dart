@@ -83,7 +83,8 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
     });
 
     final participants = [
-      for (final member in widget.members) ExpenseParticipant(userId: member.id),
+      for (final member in widget.members)
+        ExpenseParticipant(userId: member.id),
     ];
 
     try {

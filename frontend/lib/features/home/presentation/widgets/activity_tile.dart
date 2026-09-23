@@ -16,8 +16,10 @@ class ActivityTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = event.isSettlement ? Icons.swap_horiz : Icons.receipt_long;
-    final iconColor = event.isSettlement ? AppColors.success : AppColors.primary;
-    final iconBackground = event.isSettlement ? AppColors.successSoft : AppColors.primarySoft;
+    final iconColor =
+        event.isSettlement ? AppColors.success : AppColors.primary;
+    final iconBackground =
+        event.isSettlement ? AppColors.successSoft : AppColors.primarySoft;
 
     return PressableScale(
       onTap: onTap,
@@ -48,7 +50,8 @@ class ActivityTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(_timeLabel(event.occurredAt), style: AppTextStyles.caption),
+                    Text(_timeLabel(event.occurredAt),
+                        style: AppTextStyles.caption),
                   ],
                 ),
               ),
@@ -59,7 +62,9 @@ class ActivityTile extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color: event.isSettlement ? AppColors.success : AppColors.textPrimary,
+                    color: event.isSettlement
+                        ? AppColors.success
+                        : AppColors.textPrimary,
                   ),
                 ),
             ],

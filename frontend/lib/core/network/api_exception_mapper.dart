@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import '../errors/app_failure.dart';
@@ -20,29 +22,31 @@ AppFailure mapApiException(Object error, [StackTrace? stackTrace]) {
         403 => ForbiddenFailure(_messageFrom(error)),
         404 => const NotFoundFailure(),
         429 => const ServerFailure(
-          'Too many requests. Please try again later.',
-        ),
+            'Too many requests. Please try again later.',
+          ),
         503 => ServiceUnavailableFailure(_messageFrom(error)),
         _ when statusCode >= 500 => ServerFailure(
-          _messageFrom(
-            error,
-            'Something went wrong on our side. Please try again later.',
+            _messageFrom(
+              error,
+              'Something went wrong on our side. Please try again later.',
+            ),
           ),
-        ),
         _ => ServerFailure(
-          _messageFrom(error, 'Something went wrong. Please try again.'),
-        ),
+            _messageFrom(error, 'Something went wrong. Please try again.'),
+          ),
       };
     }
 
     return switch (error.type) {
       DioExceptionType.connectionTimeout ||
       DioExceptionType.sendTimeout ||
-      DioExceptionType.receiveTimeout => const NetworkFailure(
-        'The request timed out. Please try again.',
-      ),
+      DioExceptionType.receiveTimeout =>
+        const NetworkFailure(
+          'The request timed out. Please try again.',
+        ),
       DioExceptionType.connectionError ||
-      DioExceptionType.unknown => const NetworkFailure(),
+      DioExceptionType.unknown =>
+        const NetworkFailure(),
       _ => const NetworkFailure(),
     };
   }
@@ -60,12 +64,25 @@ String appErrorMessage(Object error) {
   return 'Something went wrong. Please try again.';
 }
 
+Map<String, dynamic>? _extractDataMap(Object? data) {
+  if (data is Map) return data.cast<String, dynamic>();
+  if (data is String && data.trim().startsWith('{')) {
+    try {
+      final decoded = jsonDecode(data);
+      if (decoded is Map) return decoded.cast<String, dynamic>();
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
 /// Builds a [ValidationFailure] that keeps the backend's structured field
 /// errors alongside a safe summary message.
 AppFailure _validationFrom(DioException error) {
-  final data = error.response?.data;
+  final data = _extractDataMap(error.response?.data);
   final List<ApiFieldError> fieldErrors = [];
-  if (data is Map && data['errors'] is List) {
+  if (data != null && data['errors'] is List) {
     for (final entry in data['errors'] as List) {
       if (entry is Map) {
         final field = entry['field'];
@@ -81,10 +98,14 @@ AppFailure _validationFrom(DioException error) {
 
 /// Uses the server-provided `message` only when it is a clean string;
 /// otherwise falls back to a safe default so raw internals never leak.
-String _messageFrom(DioException error, [String fallback = 'Please check the information you entered.']) {
-  final data = error.response?.data;
-  if (data is Map && data['message'] is String) {
-    return data['message'] as String;
+String _messageFrom(
+  DioException error, [
+  String fallback = 'Please check the information you entered.',
+]) {
+  final data = _extractDataMap(error.response?.data);
+  if (data != null && data['message'] is String) {
+    final msg = (data['message'] as String).trim();
+    if (msg.isNotEmpty) return msg;
   }
   return fallback;
 }

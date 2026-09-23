@@ -31,14 +31,16 @@ bool isRegistered<T extends Object>() => getIt.isRegistered<T>();
 /// [apiClient] is injectable so tests can substitute a client with a fake
 /// HTTP adapter without touching production wiring. [secureStorage] is
 /// injectable so widget tests can avoid the native keychain plugin.
-Future<void> configureDependencies({ApiClient? apiClient, SecureStorage? secureStorage}) async {
+Future<void> configureDependencies(
+    {ApiClient? apiClient, SecureStorage? secureStorage}) async {
   if (getIt.isRegistered<LocalStorage>()) return;
 
   final prefs = await SharedPreferences.getInstance();
   final localStorage = LocalStorage(prefs);
   getIt.registerLazySingleton<LocalStorage>(() => localStorage);
 
-  final tokenStore = AuthTokenStore(secureStorage ?? FlutterSecureStorageImpl());
+  final tokenStore =
+      AuthTokenStore(secureStorage ?? FlutterSecureStorageImpl());
   getIt.registerLazySingleton<AuthTokenStore>(() => tokenStore);
 
   getIt.registerLazySingleton<ApiClient>(

@@ -134,7 +134,8 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(user?.name ?? 'Hisab User', style: AppTextStyles.title),
+                          Text(user?.name ?? 'Hisab User',
+                              style: AppTextStyles.title),
                           const SizedBox(height: 2),
                           Text(user?.email ?? '', style: AppTextStyles.caption),
                         ],
@@ -156,7 +157,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(width: AppSpacing.small),
                 StatCard(value: _loading ? '-' : _owsShort, label: 'You owe'),
                 const SizedBox(width: AppSpacing.small),
-                StatCard(value: _loading ? '-' : _owedShort, label: 'Owed to you'),
+                StatCard(
+                    value: _loading ? '-' : _owedShort, label: 'Owed to you'),
               ],
             ),
           ),

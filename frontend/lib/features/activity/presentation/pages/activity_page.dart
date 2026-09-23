@@ -163,7 +163,6 @@ class _ActivityPageState extends State<ActivityPage> {
               onChanged: (filter) => setState(() => _filter = filter),
             ),
             const SizedBox(height: AppSpacing.medium),
-
             if (_loadingInitial)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 48),
@@ -177,10 +176,12 @@ class _ActivityPageState extends State<ActivityPage> {
                     Text(
                       _error!,
                       textAlign: TextAlign.center,
-                      style: AppTextStyles.bodyMedium.copyWith(color: AppColors.danger),
+                      style: AppTextStyles.bodyMedium
+                          .copyWith(color: AppColors.danger),
                     ),
                     const SizedBox(height: AppSpacing.medium),
-                    OutlinedButton(onPressed: _refresh, child: const Text('Retry')),
+                    OutlinedButton(
+                        onPressed: _refresh, child: const Text('Retry')),
                   ],
                 ),
               ),
@@ -203,11 +204,12 @@ class _ActivityPageState extends State<ActivityPage> {
                 ),
               )
             else ...[
-              for (final section in _sections) ActivityGroup(
-                dateLabel: section.label,
-                filter: _filter,
-                events: section.events,
-              ),
+              for (final section in _sections)
+                ActivityGroup(
+                  dateLabel: section.label,
+                  filter: _filter,
+                  events: section.events,
+                ),
               if (_loadingMore)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
@@ -274,10 +276,19 @@ class _ActivityPageState extends State<ActivityPage> {
     if (date == today) return 'Today';
     if (date == yesterday) return 'Yesterday';
     final weekday = const [
-      'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
     ][date.weekday - 1];
-    final isThisWeek = date.isAfter(today.subtract(const Duration(days: 7))) && date.isBefore(today);
-    return isThisWeek ? weekday : '$day/${month.toString().padLeft(2, '0')}/$year';
+    final isThisWeek = date.isAfter(today.subtract(const Duration(days: 7))) &&
+        date.isBefore(today);
+    return isThisWeek
+        ? weekday
+        : '$day/${month.toString().padLeft(2, '0')}/$year';
   }
 }
 

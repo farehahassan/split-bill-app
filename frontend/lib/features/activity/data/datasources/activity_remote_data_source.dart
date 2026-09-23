@@ -34,9 +34,11 @@ class ActivityRemoteDataSource {
       // Defensive: pagination is part of the contract; treat as a single page.
       return ActivityFeedPage(
         events: events,
-        pagination: ActivityPagination(page: page, limit: limit, total: events.length),
+        pagination:
+            ActivityPagination(page: page, limit: limit, total: events.length),
       );
     }
-    return ActivityFeedPage.fromJson(events: events, paginationJson: paginationJson);
+    return ActivityFeedPage.fromJson(
+        events: events, paginationJson: paginationJson);
   }
 }

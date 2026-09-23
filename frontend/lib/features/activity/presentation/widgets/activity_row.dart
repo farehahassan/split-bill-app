@@ -17,8 +17,10 @@ class ActivityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = event.isSettlement ? Icons.swap_horiz : Icons.receipt_long;
-    final iconColor = event.isSettlement ? AppColors.success : AppColors.primary;
-    final iconBackground = event.isSettlement ? AppColors.successSoft : AppColors.primarySoft;
+    final iconColor =
+        event.isSettlement ? AppColors.success : AppColors.primary;
+    final iconBackground =
+        event.isSettlement ? AppColors.successSoft : AppColors.primarySoft;
 
     return PressableScale(
       onTap: () => showModalBottomSheet<void>(
@@ -67,7 +69,9 @@ class ActivityRow extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    color: event.isSettlement ? AppColors.success : AppColors.textPrimary,
+                    color: event.isSettlement
+                        ? AppColors.success
+                        : AppColors.textPrimary,
                   ),
                 ),
             ],

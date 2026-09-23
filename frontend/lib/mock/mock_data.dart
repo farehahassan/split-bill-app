@@ -123,13 +123,13 @@ class ReceiptItem {
   final String? assignedTo;
 
   ReceiptItem copyWith({String? assignedTo}) => ReceiptItem(
-    id: id,
-    name: name,
-    quantity: quantity,
-    total: total,
-    unitPrice: unitPrice,
-    assignedTo: assignedTo,
-  );
+        id: id,
+        name: name,
+        quantity: quantity,
+        total: total,
+        unitPrice: unitPrice,
+        assignedTo: assignedTo,
+      );
 }
 
 /// A person participating in a receipt split.

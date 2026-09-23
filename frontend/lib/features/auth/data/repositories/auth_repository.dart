@@ -21,7 +21,8 @@ class AuthRepository {
     required String email,
     required String password,
   }) async {
-    final session = await _remote.register(name: name, email: email, password: password);
+    final session =
+        await _remote.register(name: name, email: email, password: password);
     await _tokenStore.saveSession(
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
@@ -29,7 +30,8 @@ class AuthRepository {
     return session;
   }
 
-  Future<AuthSession> login({required String email, required String password}) async {
+  Future<AuthSession> login(
+      {required String email, required String password}) async {
     final session = await _remote.login(email: email, password: password);
     await _tokenStore.saveSession(
       accessToken: session.accessToken,

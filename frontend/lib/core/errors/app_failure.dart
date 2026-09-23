@@ -77,6 +77,7 @@ class UnknownFailure extends AppFailure {
 /// The backend address was reachable but reported it was not ready (503).
 class ServiceUnavailableFailure extends ServerFailure {
   const ServiceUnavailableFailure([
-    super.message = 'The service is temporarily unavailable. Please try again later.',
+    super.message =
+        'The service is temporarily unavailable. Please try again later.',
   ]);
 }

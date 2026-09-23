@@ -3,12 +3,18 @@ import 'package:split_bill_app/core/network/api_envelope.dart';
 
 void main() {
   test('unwrapApiData extracts the data payload', () {
-    final decoded = unwrapApiData({'success': true, 'data': {'groups': <Object?>[]}});
+    final decoded = unwrapApiData({
+      'success': true,
+      'data': {'groups': <Object?>[]}
+    });
     expect(decoded, {'groups': <Object?>[]});
   });
 
   test('unwrapApiData accepts a top-level list payload', () {
-    final decoded = unwrapApiData({'success': true, 'data': <Object?>[1, 2, 3]});
+    final decoded = unwrapApiData({
+      'success': true,
+      'data': <Object?>[1, 2, 3]
+    });
     expect(decoded, <Object?>[1, 2, 3]);
   });
 

@@ -113,16 +113,16 @@ class _BalancesPageState extends State<BalancesPage> {
   }
 
   Money get _youOweTotal => Money(
-    _balances
-        .where((b) => b.userId == _currentUserId && b.isDebtor)
-        .fold<int>(0, (sum, b) => sum + b.amountMinorUnits),
-  );
+        _balances
+            .where((b) => b.userId == _currentUserId && b.isDebtor)
+            .fold<int>(0, (sum, b) => sum + b.amountMinorUnits),
+      );
 
   Money get _youAreOwedTotal => Money(
-    _balances
-        .where((b) => b.userId == _currentUserId && b.isCreditor)
-        .fold<int>(0, (sum, b) => sum + b.amountMinorUnits),
-  );
+        _balances
+            .where((b) => b.userId == _currentUserId && b.isCreditor)
+            .fold<int>(0, (sum, b) => sum + b.amountMinorUnits),
+      );
 
   List<GroupBalance> get _memberBalances {
     final others = _balances.where((b) => b.userId != _currentUserId).toList()
@@ -164,7 +164,8 @@ class _BalancesPageState extends State<BalancesPage> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text('Settled ${amount.format()} with ${payee.name}')),
+          SnackBar(
+              content: Text('Settled ${amount.format()} with ${payee.name}')),
         );
       _loadGroupData();
     } catch (error) {
@@ -180,7 +181,8 @@ class _BalancesPageState extends State<BalancesPage> {
               content: const Text('Settlement failed. Please retry.'),
               action: SnackBarAction(
                 label: 'Retry',
-                onPressed: () => _createSettlement(payee, amount, reusedKey: request.idempotencyKey),
+                onPressed: () => _createSettlement(payee, amount,
+                    reusedKey: request.idempotencyKey),
               ),
             ),
           );
@@ -201,21 +203,21 @@ class _BalancesPageState extends State<BalancesPage> {
         children: [
           const HisabHeader(title: 'Hisab'),
           const SizedBox(height: AppSpacing.large),
-
           Entrance(
             child: Text('Balances', style: AppTextStyles.sectionTitle),
           ),
           const SizedBox(height: AppSpacing.small),
           if (_groups.isNotEmpty) _groupSelector,
           const SizedBox(height: AppSpacing.medium),
-
           if (_loading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
               child: Center(child: CircularProgressIndicator()),
             )
-          else if (_error != null && selected == null) _errorView
-          else if (selected == null) _emptyView
+          else if (_error != null && selected == null)
+            _errorView
+          else if (selected == null)
+            _emptyView
           else ...[
             Entrance(
               delay: const Duration(milliseconds: 60),
@@ -224,7 +226,9 @@ class _BalancesPageState extends State<BalancesPage> {
                   Expanded(
                     child: BalanceSummaryCard(
                       label: 'YOU OWE',
-                      amount: _youOweTotal.isNegative ? -_youOweTotal : _youOweTotal,
+                      amount: _youOweTotal.isNegative
+                          ? -_youOweTotal
+                          : _youOweTotal,
                       color: AppColors.danger,
                     ),
                   ),
@@ -249,14 +253,17 @@ class _BalancesPageState extends State<BalancesPage> {
             if (_memberBalances.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text('No outstanding balances.', style: AppTextStyles.caption),
+                child: Text('No outstanding balances.',
+                    style: AppTextStyles.caption),
               ),
             for (var i = 0; i < _memberBalances.length; i++) ...[
               Entrance(
                 delay: Duration(milliseconds: 160 + i * 60),
                 child: BalanceTile(
                   balance: _memberBalances[i],
-                  onSettle: _memberBalances[i].isCreditor ? () => _settle(_memberBalances[i]) : null,
+                  onSettle: _memberBalances[i].isCreditor
+                      ? () => _settle(_memberBalances[i])
+                      : null,
                 ),
               ),
               const SizedBox(height: AppSpacing.small),
@@ -266,7 +273,8 @@ class _BalancesPageState extends State<BalancesPage> {
             if (_settlements.isNotEmpty) ...[
               Entrance(
                 delay: const Duration(milliseconds: 160),
-                child: Text('Recent Settlements', style: AppTextStyles.sectionTitle),
+                child: Text('Recent Settlements',
+                    style: AppTextStyles.sectionTitle),
               ),
               const SizedBox(height: AppSpacing.small),
               for (var i = 0; i < _settlements.length && i < 3; i++) ...[
@@ -379,7 +387,8 @@ class _BalancesPageState extends State<BalancesPage> {
       padding: const EdgeInsets.symmetric(vertical: 32),
       child: Column(
         children: [
-          const Icon(Icons.account_balance_wallet_outlined, size: 40, color: AppColors.textSecondary),
+          const Icon(Icons.account_balance_wallet_outlined,
+              size: 40, color: AppColors.textSecondary),
           const SizedBox(height: AppSpacing.small),
           Text(
             'Create a group to see balances.',
@@ -412,7 +421,8 @@ class _SettlementRow extends StatelessWidget {
                 color: AppColors.successSoft,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.swap_horiz, color: AppColors.success, size: 20),
+              child: const Icon(Icons.swap_horiz,
+                  color: AppColors.success, size: 20),
             ),
             const SizedBox(width: AppSpacing.medium),
             Expanded(

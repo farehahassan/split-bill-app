@@ -11,7 +11,8 @@ abstract class SettlementsRepository {
   Future<List<GroupBalance>> getGroupBalances(String groupId);
   Future<List<Settlement>> getGroupSettlements(String groupId);
   Future<Settlement> getSettlement(String settlementId);
-  Future<Settlement> createSettlement(String groupId, CreateSettlementRequest request);
+  Future<Settlement> createSettlement(
+      String groupId, CreateSettlementRequest request);
 }
 
 class SettlementsRepositoryImpl implements SettlementsRepository {
@@ -32,6 +33,7 @@ class SettlementsRepositoryImpl implements SettlementsRepository {
       _remote.getSettlement(settlementId);
 
   @override
-  Future<Settlement> createSettlement(String groupId, CreateSettlementRequest request) =>
+  Future<Settlement> createSettlement(
+          String groupId, CreateSettlementRequest request) =>
       _remote.createSettlement(groupId: groupId, request: request);
 }

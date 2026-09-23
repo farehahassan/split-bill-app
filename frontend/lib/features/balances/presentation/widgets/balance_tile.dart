@@ -34,7 +34,8 @@ class BalanceTile extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: creditor ? AppColors.successSoft : AppColors.dangerSoft,
+                backgroundColor:
+                    creditor ? AppColors.successSoft : AppColors.dangerSoft,
                 child: Text(
                   _initialOf(balance.name),
                   style: TextStyle(

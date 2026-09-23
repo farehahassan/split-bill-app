@@ -70,7 +70,8 @@ String? _authRedirect(BuildContext context, GoRouterState state) {
     return location == '/' ? null : '/';
   }
 
-  final isPublic = location == '/' || location == '/sign-in' || location == '/sign-up';
+  final isPublic =
+      location == '/' || location == '/sign-in' || location == '/sign-up';
 
   if (auth.isAuthenticated) {
     if (location == '/sign-in' || location == '/sign-up') return '/shell';

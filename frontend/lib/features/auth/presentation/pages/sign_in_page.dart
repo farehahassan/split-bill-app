@@ -66,7 +66,8 @@ class _SignInPageState extends State<SignInPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _formError = _auth.errorMessage ?? 'Unable to sign in. Please try again.';
+        _formError =
+            _auth.errorMessage ?? 'Unable to sign in. Please try again.';
       });
     }
   }
@@ -139,7 +140,8 @@ class _SignInPageState extends State<SignInPage> {
                   children: [
                     const Expanded(child: FieldLabel(text: 'PASSWORD')),
                     GestureDetector(
-                      onTap: () => _notifyComingSoon('Password reset coming soon'),
+                      onTap: () =>
+                          _notifyComingSoon('Password reset coming soon'),
                       child: Text(
                         'FORGOT?',
                         style: AppTextStyles.labelSmall.copyWith(

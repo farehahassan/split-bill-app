@@ -51,15 +51,13 @@ class PersonChip extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 20,
-                    backgroundColor: selected
-                        ? AppColors.primary
-                        : AppColors.surfaceMuted,
+                    backgroundColor:
+                        selected ? AppColors.primary : AppColors.surfaceMuted,
                     child: Text(
                       person.initials,
                       style: TextStyle(
-                        color: selected
-                            ? Colors.white
-                            : AppColors.textSecondary,
+                        color:
+                            selected ? Colors.white : AppColors.textSecondary,
                         fontWeight: FontWeight.w800,
                         fontSize: 14,
                       ),

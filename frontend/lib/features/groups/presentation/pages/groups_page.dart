@@ -89,7 +89,8 @@ class _GroupsPageState extends State<GroupsPage> {
       final name = nameController.text.trim();
       nameController.dispose();
       try {
-        await getIt<GroupsRepository>().createGroup(name.isEmpty ? 'New Group' : name);
+        await getIt<GroupsRepository>()
+            .createGroup(name.isEmpty ? 'New Group' : name);
         if (!mounted) return;
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -110,7 +111,8 @@ class _GroupsPageState extends State<GroupsPage> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => GroupDetailsSheet(groupId: group.id, groupName: group.name),
+      builder: (context) =>
+          GroupDetailsSheet(groupId: group.id, groupName: group.name),
     );
   }
 
@@ -122,7 +124,6 @@ class _GroupsPageState extends State<GroupsPage> {
         children: [
           const HisabHeader(title: 'Hisab'),
           const SizedBox(height: AppSpacing.large),
-
           Entrance(
             child: AppButton(
               label: 'Create Group',
@@ -131,7 +132,6 @@ class _GroupsPageState extends State<GroupsPage> {
             ),
           ),
           const SizedBox(height: AppSpacing.large),
-
           const Entrance(
             delay: Duration(milliseconds: 100),
             child: Text('Active Groups', style: AppTextStyles.sectionTitle),
@@ -155,7 +155,8 @@ class _GroupsPageState extends State<GroupsPage> {
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Column(
                 children: [
-                  const Icon(Icons.group_outlined, size: 40, color: AppColors.textSecondary),
+                  const Icon(Icons.group_outlined,
+                      size: 40, color: AppColors.textSecondary),
                   const SizedBox(height: AppSpacing.small),
                   Text(
                     'No groups yet. Create one to start splitting.',

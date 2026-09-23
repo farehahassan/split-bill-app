@@ -40,7 +40,13 @@ class ActivityEvent {
   }
 
   static ActivityEvent fromJson(Map<String, dynamic> json) {
-    final user = json['user'] as Map<String, dynamic>;
+    String name = 'Member';
+    if (json['user'] is Map) {
+      name = (json['user'] as Map)['name'] as String? ?? 'Member';
+    } else if (json['userName'] is String) {
+      name = json['userName'] as String;
+    }
+
     return ActivityEvent(
       id: json['id'] as String,
       groupId: json['groupId'] as String,
@@ -51,9 +57,79 @@ class ActivityEvent {
       currencyCode: json['currencyCode'] as String?,
       occurredAt: DateTime.parse(json['occurredAt'] as String),
       createdAt: DateTime.parse(json['createdAt'] as String),
-      userName: user['name'] as String,
+      userName: name,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'groupId': groupId,
+        'userId': userId,
+        'type': type,
+        'message': message,
+        'amountMinorUnits': amountMinorUnits,
+        'currencyCode': currencyCode,
+        'occurredAt': occurredAt.toIso8601String(),
+        'createdAt': createdAt.toIso8601String(),
+        'user': {'id': userId, 'name': userName, 'email': ''},
+      };
+
+  ActivityEvent copyWith({
+    String? id,
+    String? groupId,
+    String? userId,
+    String? type,
+    String? message,
+    int? amountMinorUnits,
+    String? currencyCode,
+    DateTime? occurredAt,
+    DateTime? createdAt,
+    String? userName,
+  }) {
+    return ActivityEvent(
+      id: id ?? this.id,
+      groupId: groupId ?? this.groupId,
+      userId: userId ?? this.userId,
+      type: type ?? this.type,
+      message: message ?? this.message,
+      amountMinorUnits: amountMinorUnits ?? this.amountMinorUnits,
+      currencyCode: currencyCode ?? this.currencyCode,
+      occurredAt: occurredAt ?? this.occurredAt,
+      createdAt: createdAt ?? this.createdAt,
+      userName: userName ?? this.userName,
+    );
+  }
+
+  @override
+  String toString() =>
+      'ActivityEvent(id: $id, type: $type, user: $userName, message: $message)';
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ActivityEvent &&
+          other.id == id &&
+          other.groupId == groupId &&
+          other.userId == userId &&
+          other.type == type &&
+          other.message == message &&
+          other.amountMinorUnits == amountMinorUnits &&
+          other.currencyCode == currencyCode &&
+          other.occurredAt == occurredAt &&
+          other.userName == userName;
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        groupId,
+        userId,
+        type,
+        message,
+        amountMinorUnits,
+        currencyCode,
+        occurredAt,
+        userName,
+      );
 }
 
 class ActivityPagination {
@@ -76,6 +152,23 @@ class ActivityPagination {
       total: json['total'] as int,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'page': page,
+        'limit': limit,
+        'total': total,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ActivityPagination &&
+          other.page == page &&
+          other.limit == limit &&
+          other.total == total;
+
+  @override
+  int get hashCode => Object.hash(page, limit, total);
 }
 
 /// One page of the activity feed. The backend returns the current page's
@@ -94,5 +187,28 @@ class ActivityFeedPage {
       events: events,
       pagination: ActivityPagination.fromJson(paginationJson),
     );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'events': events.map((e) => e.toJson()).toList(),
+        'pagination': pagination.toJson(),
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ActivityFeedPage &&
+          other.pagination == pagination &&
+          _listEquals(other.events, events);
+
+  @override
+  int get hashCode => Object.hash(pagination, Object.hashAll(events));
+
+  static bool _listEquals(List<ActivityEvent> a, List<ActivityEvent> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 }

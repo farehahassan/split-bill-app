@@ -24,7 +24,8 @@ class GroupsRepositoryImpl implements GroupsRepository {
   Future<GroupDetail> getGroup(String groupId) => _remote.getGroup(groupId);
 
   @override
-  Future<GroupSummary> createGroup(String name) => _remote.createGroup(name: name);
+  Future<GroupSummary> createGroup(String name) =>
+      _remote.createGroup(name: name);
 
   @override
   Future<GroupSummary> updateGroup(String groupId, String name) =>

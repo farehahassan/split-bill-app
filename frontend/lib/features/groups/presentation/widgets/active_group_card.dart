@@ -12,7 +12,8 @@ import '../../data/models/group.dart';
 /// when [balance] is supplied, whether the user owes or is owed inside the
 /// group (positive balance = user is a creditor).
 class ActiveGroupCard extends StatelessWidget {
-  const ActiveGroupCard({super.key, required this.group, this.balance, this.onTap});
+  const ActiveGroupCard(
+      {super.key, required this.group, this.balance, this.onTap});
 
   final GroupSummary group;
 
@@ -38,7 +39,8 @@ class ActiveGroupCard extends StatelessWidget {
                   color: AppColors.primarySoft,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.group_outlined, color: AppColors.primary, size: 24),
+                child: const Icon(Icons.group_outlined,
+                    color: AppColors.primary, size: 24),
               ),
               const SizedBox(width: AppSpacing.medium),
               Expanded(
@@ -75,7 +77,9 @@ class ActiveGroupCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
-                        color: balance!.minorUnits >= 0 ? AppColors.success : AppColors.danger,
+                        color: balance!.minorUnits >= 0
+                            ? AppColors.success
+                            : AppColors.danger,
                       ),
                     ),
                   ],

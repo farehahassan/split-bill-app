@@ -10,8 +10,10 @@ import 'dart:math';
 /// responsible for keeping a key stable across retries of one operation.
 String generateIdempotencyKey({Random? random}) {
   final rng = random ?? Random.secure();
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789';
+  const alphabet =
+      'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789';
   final timestamp = DateTime.now().microsecondsSinceEpoch;
-  final randomPart = List.generate(12, (_) => alphabet[rng.nextInt(alphabet.length)]).join();
+  final randomPart =
+      List.generate(12, (_) => alphabet[rng.nextInt(alphabet.length)]).join();
   return 'ky_${timestamp}_$randomPart';
 }

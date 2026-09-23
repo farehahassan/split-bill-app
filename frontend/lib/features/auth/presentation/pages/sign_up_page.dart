@@ -79,7 +79,8 @@ class _SignUpPageState extends State<SignUpPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _formError = _auth.errorMessage ?? 'Unable to create your account. Please try again.';
+        _formError = _auth.errorMessage ??
+            'Unable to create your account. Please try again.';
       });
     }
   }
@@ -117,12 +118,10 @@ class _SignUpPageState extends State<SignUpPage> {
                 ),
               ),
               const SizedBox(height: 40),
-
               if (_formError != null) ...[
                 _ErrorBanner(message: _formError!),
                 const SizedBox(height: AppSpacing.medium),
               ],
-
               Entrance(
                 delay: const Duration(milliseconds: 200),
                 child: const FieldLabel(text: 'NAME'),
@@ -140,7 +139,6 @@ class _SignUpPageState extends State<SignUpPage> {
                 ),
               ),
               const SizedBox(height: AppSpacing.large),
-
               Entrance(
                 delay: const Duration(milliseconds: 280),
                 child: const FieldLabel(text: 'EMAIL'),
@@ -159,7 +157,6 @@ class _SignUpPageState extends State<SignUpPage> {
                 ),
               ),
               const SizedBox(height: AppSpacing.large),
-
               Entrance(
                 delay: const Duration(milliseconds: 360),
                 child: const FieldLabel(text: 'PASSWORD'),
@@ -186,7 +183,6 @@ class _SignUpPageState extends State<SignUpPage> {
                 ),
               ),
               const SizedBox(height: AppSpacing.large),
-
               Entrance(
                 delay: const Duration(milliseconds: 440),
                 child: AppButton(
@@ -196,7 +192,6 @@ class _SignUpPageState extends State<SignUpPage> {
                 ),
               ),
               const SizedBox(height: AppSpacing.xl),
-
               Entrance(
                 delay: const Duration(milliseconds: 520),
                 child: Row(

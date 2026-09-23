@@ -28,9 +28,8 @@ class ReceiptPage extends StatefulWidget {
 
 class _ReceiptPageState extends State<ReceiptPage> {
   String _selected = 'You';
-  final List<ReceiptItem> _items = receiptItems
-      .map((item) => item.copyWith())
-      .toList();
+  final List<ReceiptItem> _items =
+      receiptItems.map((item) => item.copyWith()).toList();
   bool _splitAll = false;
   bool _confirming = false;
   bool _confirmed = false;
@@ -251,14 +250,14 @@ class _ReceiptPageState extends State<ReceiptPage> {
                                   onPressed: _confirming
                                       ? null
                                       : () => ScaffoldMessenger.of(context)
-                                          ..hideCurrentSnackBar()
-                                          ..showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Receipt editor coming soon',
-                                              ),
+                                        ..hideCurrentSnackBar()
+                                        ..showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Receipt editor coming soon',
                                             ),
                                           ),
+                                        ),
                                   child: const Text('Edit Receipt'),
                                 ),
                               ),

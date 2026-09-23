@@ -23,7 +23,8 @@ class ActivityGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visible = events.where((event) => activityMatches(event, filter)).toList();
+    final visible =
+        events.where((event) => activityMatches(event, filter)).toList();
     if (visible.isEmpty) return const SizedBox.shrink();
 
     return Column(

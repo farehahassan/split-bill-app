@@ -86,7 +86,8 @@ class AuthController extends ChangeNotifier {
     required String email,
     required String password,
   }) async {
-    await _submit(() => _repository.register(name: name, email: email, password: password));
+    await _submit(() =>
+        _repository.register(name: name, email: email, password: password));
   }
 
   Future<void> logout() async {

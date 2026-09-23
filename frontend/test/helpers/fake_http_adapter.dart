@@ -11,9 +11,9 @@ class FakeResponse {
   final Map<String, Object?> data;
 
   Map<String, Object?> get envelopeSuccess => {
-    'success': true,
-    'data': data,
-  };
+        'success': true,
+        'data': data,
+      };
 }
 
 /// Synchronous, in-memory HTTP backend that scripted widget/unit tests can
@@ -51,7 +51,9 @@ class FakeHttpAdapter implements HttpClientAdapter {
     return ResponseBody.fromBytes(
       body,
       match.statusCode,
-      headers: {Headers.contentTypeHeader: [Headers.jsonContentType]},
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType]
+      },
     );
   }
 

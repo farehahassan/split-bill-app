@@ -37,7 +37,8 @@ class GroupsRemoteDataSource {
     return GroupDetail.fromJson(data['group'] as Map<String, dynamic>);
   }
 
-  Future<GroupSummary> updateGroup({required String groupId, required String name}) async {
+  Future<GroupSummary> updateGroup(
+      {required String groupId, required String name}) async {
     final decoded = await _client.put('/groups/$groupId', data: {'name': name});
     final data = unwrapApiData(decoded) as Map<String, dynamic>;
     return GroupSummary.fromJson(data['group'] as Map<String, dynamic>);
@@ -59,7 +60,8 @@ class GroupsRemoteDataSource {
     return GroupMemberRecord.fromJson(data['member'] as Map<String, dynamic>);
   }
 
-  Future<void> removeMember({required String groupId, required String memberId}) async {
+  Future<void> removeMember(
+      {required String groupId, required String memberId}) async {
     await _client.delete('/groups/$groupId/members/$memberId');
   }
 }

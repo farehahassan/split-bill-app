@@ -5,7 +5,8 @@ import '../models/expense.dart';
 abstract class ExpensesRepository {
   Future<List<ExpenseSummary>> getGroupExpenses(String groupId);
   Future<ExpenseDetail> getExpense(String expenseId);
-  Future<ExpenseDetail> createExpense(String groupId, CreateExpenseRequest request);
+  Future<ExpenseDetail> createExpense(
+      String groupId, CreateExpenseRequest request);
 }
 
 class ExpensesRepositoryImpl implements ExpensesRepository {
@@ -18,9 +19,11 @@ class ExpensesRepositoryImpl implements ExpensesRepository {
       _remote.getGroupExpenses(groupId);
 
   @override
-  Future<ExpenseDetail> getExpense(String expenseId) => _remote.getExpense(expenseId);
+  Future<ExpenseDetail> getExpense(String expenseId) =>
+      _remote.getExpense(expenseId);
 
   @override
-  Future<ExpenseDetail> createExpense(String groupId, CreateExpenseRequest request) =>
+  Future<ExpenseDetail> createExpense(
+          String groupId, CreateExpenseRequest request) =>
       _remote.createExpense(groupId: groupId, request: request);
 }

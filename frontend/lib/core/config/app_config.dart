@@ -16,6 +16,20 @@ abstract final class AppConfig {
     'API_BASE_URL',
   );
 
+  /// Default API base URL for desktop and iOS simulator local development.
+  static const String defaultLocalApiBaseUrl = 'http://localhost:3000/api/v1';
+
+  /// Default API base URL for Android Emulator local development (loopback to host).
+  static const String androidEmulatorApiBaseUrl = 'http://10.0.2.2:3000/api/v1';
+
+  /// Standard network timeouts across the application.
+  static const Duration connectTimeout = Duration(seconds: 15);
+  static const Duration receiveTimeout = Duration(seconds: 15);
+  static const Duration sendTimeout = Duration(seconds: 15);
+
+  /// Default application currency code.
+  static const String defaultCurrency = 'PKR';
+
   /// Backend base URL including the `/api/v1` prefix, e.g.
   /// `http://localhost:3000/api/v1`.
   static String get apiBaseUrl {
@@ -26,6 +40,6 @@ abstract final class AppConfig {
         '--dart-define=API_BASE_URL=https://...',
       );
     }
-    return 'http://localhost:3000/api/v1';
+    return defaultLocalApiBaseUrl;
   }
 }

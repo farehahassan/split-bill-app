@@ -34,12 +34,14 @@ void main() {
     );
   });
 
-  FakeResponse jsonResponse(int status, [Map<String, Object?> data = const {}]) {
+  FakeResponse jsonResponse(int status,
+      [Map<String, Object?> data = const {}]) {
     return FakeResponse(status, data);
   }
 
   test('attaches the bearer token to authenticated requests', () async {
-    await tokenStore.saveSession(accessToken: 'access-1', refreshToken: 'refresh-1');
+    await tokenStore.saveSession(
+        accessToken: 'access-1', refreshToken: 'refresh-1');
     adapter.handle = (o) => jsonResponse(200, {'ok': true});
 
     await client.get('/groups');
@@ -49,17 +51,20 @@ void main() {
   });
 
   test('does not attach the token to login/register endpoints', () async {
-    await tokenStore.saveSession(accessToken: 'access-1', refreshToken: 'refresh-1');
-    adapter.handle = (o) =>
-        o.path == '/auth/login' ? jsonResponse(200, {'ok': true}) : null;
+    await tokenStore.saveSession(
+        accessToken: 'access-1', refreshToken: 'refresh-1');
+    adapter.handle =
+        (o) => o.path == '/auth/login' ? jsonResponse(200, {'ok': true}) : null;
 
     await client.post('/auth/login', data: {'email': 'a@b.c'});
 
-    expect(adapter.requests.single.headers.containsKey('Authorization'), isFalse);
+    expect(
+        adapter.requests.single.headers.containsKey('Authorization'), isFalse);
   });
 
   test('GET 401 refreshes once then retries successfully', () async {
-    await tokenStore.saveSession(accessToken: 'stale', refreshToken: 'refresh-1');
+    await tokenStore.saveSession(
+        accessToken: 'stale', refreshToken: 'refresh-1');
     var calls = 0;
     adapter.handle = (o) {
       calls++;
@@ -77,12 +82,15 @@ void main() {
     expect(expiredCount, 0);
   });
 
-  test('GET 401 with a failed refresh expires the session and does not retry', () async {
+  test('GET 401 with a failed refresh expires the session and does not retry',
+      () async {
     final failingStore = AuthTokenStore(InMemorySecureStorage());
-    await failingStore.saveSession(accessToken: 'stale', refreshToken: 'refresh-1');
+    await failingStore.saveSession(
+        accessToken: 'stale', refreshToken: 'refresh-1');
 
     final failingDio = Dio(BaseOptions(baseUrl: 'http://test.local'));
-    failingDio.httpClientAdapter = FakeHttpAdapter((o) => jsonResponse(401, {}));
+    failingDio.httpClientAdapter =
+        FakeHttpAdapter((o) => jsonResponse(401, {}));
     final failingClient = ApiClient(
       baseUrl: 'http://test.local',
       tokenStore: failingStore,
@@ -104,7 +112,8 @@ void main() {
   });
 
   test('mutations (POST) are never auto-retried on 401', () async {
-    await tokenStore.saveSession(accessToken: 'stale', refreshToken: 'refresh-1');
+    await tokenStore.saveSession(
+        accessToken: 'stale', refreshToken: 'refresh-1');
     var calls = 0;
     adapter.handle = (o) {
       calls++;
@@ -121,7 +130,8 @@ void main() {
   });
 
   test('a second GET 401 after refresh also expires the session', () async {
-    await tokenStore.saveSession(accessToken: 'stale', refreshToken: 'refresh-1');
+    await tokenStore.saveSession(
+        accessToken: 'stale', refreshToken: 'refresh-1');
     adapter.handle = (o) => jsonResponse(401, {'message': 'expired'});
 
     await expectLater(
@@ -133,11 +143,14 @@ void main() {
   });
 
   test('parallel 401 GETs share a single refresh', () async {
-    await tokenStore.saveSession(accessToken: 'stale', refreshToken: 'refresh-1');
+    await tokenStore.saveSession(
+        accessToken: 'stale', refreshToken: 'refresh-1');
     var calls = 0;
     adapter.handle = (o) {
       calls++;
-      return calls <= 1 ? jsonResponse(401, {}) : jsonResponse(200, {'ok': true});
+      return calls <= 1
+          ? jsonResponse(401, {})
+          : jsonResponse(200, {'ok': true});
     };
 
     await Future.wait([client.get('/a'), client.get('/b')]);
@@ -150,5 +163,39 @@ void main() {
     adapter.handle = (o) => FakeResponse(204, {});
     final result = await client.delete('/groups/g1');
     expect(result, isNull);
+  });
+
+  test('PUT sends data, queryParameters and custom headers', () async {
+    adapter.handle = (o) => jsonResponse(200, {'updated': true});
+    final result = await client.put(
+      '/groups/g1',
+      data: {'name': 'Updated Trip'},
+      headers: {'X-Custom-Header': 'CustomValue'},
+      queryParameters: {'notify': true},
+    );
+
+    expect(result, {'updated': true});
+    expect(adapter.requests, hasLength(1));
+    final req = adapter.requests.single;
+    expect(req.method, 'PUT');
+    expect(req.data, {'name': 'Updated Trip'});
+    expect(req.headers['X-Custom-Header'], 'CustomValue');
+    expect(req.queryParameters['notify'], true);
+  });
+
+  test('DELETE sends data, queryParameters and custom headers', () async {
+    adapter.handle = (o) => jsonResponse(200, {'deleted': true});
+    final result = await client.delete(
+      '/groups/g1/members/m1',
+      headers: {'X-Audit-Reason': 'UserLeft'},
+      queryParameters: {'cascade': false},
+    );
+
+    expect(result, {'deleted': true});
+    expect(adapter.requests, hasLength(1));
+    final req = adapter.requests.single;
+    expect(req.method, 'DELETE');
+    expect(req.headers['X-Audit-Reason'], 'UserLeft');
+    expect(req.queryParameters['cascade'], false);
   });
 }

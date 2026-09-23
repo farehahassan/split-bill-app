@@ -30,7 +30,8 @@ class RecentGroupCard extends StatelessWidget {
                   color: AppColors.primarySoft,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.group_outlined, color: AppColors.primary, size: 24),
+                child: const Icon(Icons.group_outlined,
+                    color: AppColors.primary, size: 24),
               ),
               const SizedBox(width: AppSpacing.medium),
               Expanded(
